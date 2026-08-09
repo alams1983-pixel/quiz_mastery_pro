@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "dev": "vite",
-    "build": "VITE_RUST_NATIVE_DISABLE=1 vite build"
+    "build": "VITE_RUST_NATIVE_DISABLE=1 vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
     "start": "node server/index.js"
