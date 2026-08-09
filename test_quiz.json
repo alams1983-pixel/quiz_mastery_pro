@@ -1,0 +1,324 @@
+[
+    {
+        "question": "According to Rutherford's gold foil experiment, if an atom were the size of a cricket ground (100 m), what would be the approximate size of the nucleus?",
+        "options": [
+            "A cricket ball (about 7 cm)",
+            "A tiny black pepper grain (a few mm)",
+            "A football (about 22 cm)",
+            "A marble (about 1 cm)"
+        ],
+        "answer": 1,
+        "explanation": "Rutherford calculated that the nucleus is about 10^5 times smaller than the atom. If the atom is 100 m, the nucleus would be 100/10^5 = 10^-3 m = 1 mm, which is the size of a black pepper grain.",
+        "tags": [
+            "Atomic Structure",
+            "Rutherford Model",
+            "Sizes"
+        ]
+    },
+    {
+        "question": "Which experimental observation from the gold foil experiment directly disproved Thomson's plum pudding model?",
+        "options": [
+            "Most alpha particles passed through the gold foil undeflected",
+            "Some alpha particles were deflected through small angles",
+            "A few alpha particles bounced back sharply from the gold foil",
+            "The gold foil became radioactive after the experiment"
+        ],
+        "answer": 2,
+        "explanation": "Thomson's model predicted positive charge spread uniformly, so alpha particles should pass through with minimal deflection. The observation that a few alpha particles bounced back sharply (180° deflection) indicated the presence of a dense, concentrated positive charge at the centre - the nucleus. This single observation completely ruled out the plum pudding model.",
+        "tags": [
+            "Atomic Models",
+            "Rutherford Experiment",
+            "Thomson Model"
+        ]
+    },
+    {
+        "question": "Why did Rutherford's planetary model of the atom fail to explain atomic stability despite successfully explaining the gold foil experiment?",
+        "options": [
+            "It incorrectly predicted the number of electrons in atoms",
+            "It could not explain why atoms are neutral",
+            "According to classical physics, accelerating charged particles lose energy and spiral into the nucleus",
+            "It could not explain the chemical properties of elements"
+        ],
+        "answer": 2,
+        "explanation": "In Rutherford's model, electrons moving in circular paths are continuously accelerating (changing direction). According to classical electromagnetic theory, accelerating charged particles emit radiation and lose energy. This would cause electrons to spiral inward and collapse into the nucleus within a fraction of a second. Since atoms are actually stable, this model was incomplete.",
+        "tags": [
+            "Rutherford Model",
+            "Atomic Stability",
+            "Limitations"
+        ]
+    },
+    {
+        "question": "Calculate the number of electrons in the M-shell of an atom with atomic number 28, assuming the K and L shells are completely filled.",
+        "options": [
+            "8",
+            "10",
+            "18",
+            "12"
+        ],
+        "answer": 1,
+        "explanation": "K-shell can hold 2 electrons, L-shell can hold 8 electrons (total 10). For atomic number 28, remaining electrons = 28 - 10 = 18 electrons should go to M-shell. However, the M-shell maximum capacity is 18, so it would be completely filled with 18 electrons. The options seem to test this calculation. Wait - recalculating: Atomic number 28 means 28 electrons. K=2, L=8 (total 10), M can hold 18, so M = 28 - 10 = 18 electrons. But the correct answer among options is 10? Let me reconsider. The question might be testing understanding that for atomic number 28 (Nickel), configuration is 2, 8, 16, 2, not 2, 8, 18. This is because after Argon (18), the M-shell doesn't fill completely before N-shell starts. So M-shell has 16 electrons. The answer should be 18 if following simple 2n^2 rule, but actual is different. Given the options, 18 is the correct simple calculation. But the options show 18 as option 2. Let me recalculate properly. Actually K=2, L=8, so M = 28-10 = 18. So answer should be option with 18.",
+        "answer": 2,
+        "explanation": "K-shell = 2 electrons, L-shell = 8 electrons. Total in K+L = 10. Remaining electrons for atomic number 28 = 28 - 10 = 18 electrons, which go to the M-shell.",
+        "tags": [
+            "Electronic Configuration",
+            "Shell Capacity",
+            "Calculations"
+        ]
+    },
+    {
+        "question": "An element X has two naturally occurring isotopes with masses 35 u and 37 u. If the average atomic mass is 35.5 u, what is the percentage abundance of the lighter isotope?",
+        "options": [
+            "50%",
+            "75%",
+            "25%",
+            "60%"
+        ],
+        "answer": 1,
+        "explanation": "Let abundance of isotope-35 = x%, then abundance of isotope-37 = (100-x)%. Average mass = 35x/100 + 37(100-x)/100 = 35.5. Solving: 35x + 3700 - 37x = 3550 → -2x = -150 → x = 75%. So the lighter isotope (35 u) has 75% abundance.",
+        "tags": [
+            "Isotopes",
+            "Average Atomic Mass",
+            "Calculations"
+        ]
+    },
+    {
+        "question": "Why do isotopes of the same element exhibit identical chemical properties despite having different mass numbers?",
+        "options": [
+            "They have the same number of protons and electrons",
+            "They have the same number of neutrons",
+            "They have the same atomic mass",
+            "They have the same number of nucleons"
+        ],
+        "answer": 0,
+        "explanation": "Isotopes have the same number of protons (atomic number) and therefore the same number of electrons when neutral. Since chemical properties depend on the electronic configuration (specifically valence electrons), isotopes of the same element show identical chemical behaviour.",
+        "tags": [
+            "Isotopes",
+            "Chemical Properties",
+            "Valence Electrons"
+        ]
+    },
+    {
+        "question": "In Bohr's model, how does the energy of an electron change when it absorbs a photon of energy exactly equal to the difference between two energy levels?",
+        "options": [
+            "It loses energy and moves to a lower shell",
+            "It absorbs energy and moves to a higher shell with no change in its speed",
+            "It absorbs energy and moves to a higher shell while maintaining constant energy",
+            "It emits radiation and falls into the nucleus"
+        ],
+        "answer": 1,
+        "explanation": "According to Bohr's model, when an electron absorbs energy exactly equal to the difference between two energy levels (ΔE = E₂ - E₁), it jumps from lower energy level to higher energy level. The energy is quantized - electrons can only occupy discrete energy levels, not intermediate states.",
+        "tags": [
+            "Bohr Model",
+            "Energy Levels",
+            "Photon Absorption"
+        ]
+    },
+    {
+        "question": "What is the maximum number of electrons that can be accommodated in the N-shell (n=4) according to the 2n² formula, and what is the outermost shell limit?",
+        "options": [
+            "32 electrons, with outermost shell limit of 8 electrons",
+            "18 electrons, with outermost shell limit of 8 electrons",
+            "32 electrons, with no additional outermost shell limit",
+            "8 electrons, with outermost shell limit of 18 electrons"
+        ],
+        "answer": 0,
+        "explanation": "For n=4, maximum electrons = 2 × 4² = 2 × 16 = 32 electrons. Additionally, Bohr and Bury's rule states that the outermost shell can accommodate a maximum of 8 electrons (except the first shell which can hold only 2). Both rules apply simultaneously - the N-shell can hold up to 32 electrons total, but if it is the outermost shell, it can only have 8.",
+        "tags": [
+            "Bohr Model",
+            "Shell Capacity",
+            "Rules"
+        ]
+    },
+    {
+        "question": "A neutral atom has 79 protons, 118 neutrons, and 79 electrons. What would be its correct atomic notation and approximate mass?",
+        "options": [
+      "$^{197}_{79}\mathrm{Au}$ with mass ~197 u",
+      "$^{118}_{79}\mathrm{Au}$ with mass ~118 u",
+      "$^{197}_{118}\mathrm{Au}$ with mass ~197 u",
+      "$^{79}_{197}\mathrm{Au}$ with mass ~79 u"
+        ],
+        "answer": 0,
+        "explanation": "Atomic number = number of protons = 79. Mass number = protons + neutrons = 79 + 118 = 197. The element with Z=79 is Gold (Au). The notation should be $^{197}_{79}\mathrm{Au}$. The mass is approximately 197 u (since each proton and neutron has mass ~1 u, electron mass is negligible).",
+        "tags": [
+            "Atomic Notation",
+            "Mass Number",
+            "Atomic Number"
+        ]
+    },
+    {
+        "question": "If magnesium (Z=12) forms MgCl₂ with chlorine, what is the valency of magnesium, and how does its electronic configuration support this?",
+        "options": [
+            "Valency = 2, because it has 2 valence electrons and loses them to achieve neon configuration",
+            "Valency = 2, because it gains 2 electrons from chlorine",
+            "Valency = 1, because it has 1 valence electron in the M-shell",
+            "Valency = 0, because it already has a stable octet"
+        ],
+        "answer": 0,
+        "explanation": "Magnesium has atomic number 12, with electronic configuration 2, 8, 2. It has 2 valence electrons in the M-shell. To achieve stability (octet), it loses these 2 electrons and becomes Mg²⁺ with configuration 2, 8 (similar to neon). Since it combines with 2 chlorine atoms (each accepting 1 electron), its combining capacity/valency is 2.",
+        "tags": [
+            "Valency",
+            "Electronic Configuration",
+            "Chemical Bonding"
+        ]
+    },
+    {
+        "question": "What fundamental problem did Chadwick's discovery of the neutron solve that was puzzling scientists in the early 20th century?",
+        "options": [
+            "Why electrons do not fall into the nucleus",
+            "Why the mass of helium is four times that of hydrogen despite having only two protons",
+            "Why atoms are electrically neutral",
+            "Why alpha particles scatter in the gold foil experiment"
+        ],
+        "answer": 1,
+        "explanation": "Scientists observed that helium has 2 protons but its mass is about 4 u (four times that of hydrogen with 1 proton), not 2 u. This suggested there must be another particle in the nucleus that adds mass without adding charge. Chadwick discovered the neutron (mass ≈ proton, charge = 0) which explained this discrepancy. A helium nucleus has 2 protons + 2 neutrons = mass 4 u.",
+        "tags": [
+            "Neutron Discovery",
+            "Atomic Mass",
+            "Chadwick"
+        ]
+    },
+    {
+        "question": "Calculate the number of neutrons in an atom of $^{56}_{26}\mathrm{Fe}$, and determine if it's more stable with respect to neutron-to-proton ratio compared to a hypothetical isotope with the same mass number but 27 protons.",
+        "options": [
+            "30 neutrons, more stable than the hypothetical isotope",
+            "56 neutrons, less stable than the hypothetical isotope",
+            "30 neutrons, equally stable as the hypothetical isotope",
+            "26 neutrons, more stable than the hypothetical isotope"
+        ],
+        "answer": 0,
+        "explanation": "For $^{56}_{26}\mathrm{Fe}$: Neutrons = Mass number - Atomic number = 56 - 26 = 30. The n/p ratio = 30/26 ≈ 1.15. A hypothetical isotope with mass 56 and 27 protons would have neutrons = 56 - 27 = 29, n/p ratio = 29/27 ≈ 1.07. Iron-56 has a more balanced n/p ratio and is known to be highly stable, whereas 27 protons would correspond to Cobalt-56 which is less stable (radioactive).",
+        "tags": [
+            "Neutrons",
+            "Nuclear Stability",
+            "Calculations"
+        ]
+    },
+    {
+        "question": "Why did Bohr propose the concept of 'stationary states' even though electrons in his model were moving in circular paths around the nucleus?",
+        "options": [
+            "Because electrons actually stop moving in these states",
+            "To explain why electrons do not lose energy despite accelerating in circular paths",
+            "Because the nucleus is stationary and only electrons move",
+            "To explain why electrons have charge"
+        ],
+        "answer": 1,
+        "explanation": "Bohr proposed 'stationary states' as a postulate to solve the stability problem. In these states, the energy of electrons remains constant even though they are in motion. This was a revolutionary idea that contradicted classical physics (which predicted accelerating charged particles would lose energy). Bohr essentially quantized the allowed orbits to explain why atoms don't collapse.",
+        "tags": [
+            "Bohr Model",
+            "Stationary States",
+            "Atomic Stability"
+        ]
+    },
+    {
+        "question": "What is the relationship between $^{14}_{6}\mathrm{C}$ and $^{14}_{7}\mathrm{N}$, and what are they respectively called?",
+        "options": [
+            "Isotopes - same atomic number, different mass number",
+            "Isobars - same mass number, different atomic number",
+            "Isotopes - different atomic number, same mass number",
+            "Isobars - different atomic number, different mass number"
+        ],
+        "answer": 1,
+        "explanation": "$^{14}_{6}\mathrm{C}$ has Z=6, A=14. $^{14}_{7}\mathrm{N}$ has Z=7, A=14. They have the same mass number (14) but different atomic numbers (6 and 7), making them isobars. Carbon-14 has 6 protons and 8 neutrons, while Nitrogen-14 has 7 protons and 7 neutrons.",
+        "tags": [
+            "Isobars",
+            "Isotopes",
+            "Atomic Notation"
+        ]
+    },
+    {
+        "question": "An alpha particle used in Rutherford's experiment is actually the nucleus of a helium atom. What is its composition, and how does this explain why it was scattered by the gold foil?",
+        "options": [
+            "2 protons and 2 electrons; it was scattered because electrons repel alpha particles",
+            "2 protons and 2 neutrons; it was scattered by the positive charge of the nucleus",
+            "2 protons and 2 neutrons; it was attracted to the nucleus and deflected",
+            "4 protons; it was scattered by the electrons in the gold atoms"
+        ],
+        "answer": 1,
+        "explanation": "An alpha particle consists of 2 protons and 2 neutrons (helium nucleus). It is positively charged. In the gold foil experiment, positively charged alpha particles were repelled by the positively charged nucleus of gold atoms. The degree of deflection depended on how close the alpha particle came to the nucleus. Some were slightly deflected (passing at a distance), few bounced back (direct collision), and most passed through (empty space).",
+        "tags": [
+            "Alpha Particles",
+            "Rutherford Experiment",
+            "Nuclear Composition"
+        ]
+    },
+    {
+        "question": "What would happen to the electronic configuration and chemical properties of an element if one proton is added to its nucleus without changing the number of electrons?",
+        "options": [
+            "The element becomes an isotope with same chemical properties",
+            "The element becomes an isobar with different chemical properties",
+            "The atom becomes positively charged with completely different chemical behaviour",
+            "The element becomes negatively charged with no change in chemical properties"
+        ],
+        "answer": 2,
+        "explanation": "If one proton is added to the nucleus (increasing atomic number by 1) but electrons remain the same, the atom is no longer neutral - it has one more positive charge than negative charge. This is an ion (cation) with completely different chemical properties. For example, if sodium (11 protons, 11 electrons, configuration 2,8,1) has one more proton (12 protons) but still 11 electrons, it becomes Mg⁺, which is chemically very different from both Na and neutral Mg.",
+        "tags": [
+            "Ions",
+            "Atomic Number",
+            "Chemical Properties"
+        ]
+    },
+    {
+        "question": "If the average atomic mass of chlorine is 35.5 u and it exists as $^{35}\mathrm{Cl}$ and $^{37}\mathrm{Cl}$, what is the ratio of $^{35}\mathrm{Cl}$ to $^{37}\mathrm{Cl}$ in naturally occurring chlorine?",
+        "options": [
+            "1 : 1",
+            "3 : 1",
+            "1 : 3",
+            "2 : 1"
+        ],
+        "answer": 1,
+        "explanation": "Let abundance of $^{35}\mathrm{Cl}$ = x%, abundance of $^{37}\mathrm{Cl}$ = (100-x)%. Average mass = 35x/100 + 37(100-x)/100 = 35.5. Solving: 35x + 3700 - 37x = 3550 → 3700 - 2x = 3550 → 2x = 150 → x = 75. So $^{35}\mathrm{Cl}$ is 75%, $^{37}\mathrm{Cl}$ is 25%. Ratio = 75:25 = 3:1.",
+        "tags": [
+            "Average Atomic Mass",
+            "Isotopes",
+            "Ratio Calculations"
+        ]
+    },
+    {
+        "question": "Why did Thomson conclude that cathode rays are a fundamental component of all atoms, not just a property of specific materials?",
+        "options": [
+            "Because cathode rays were visible in all gases",
+            "Because the nature of cathode rays was independent of the cathode material and the gas in the tube",
+            "Because cathode rays were heavier than atoms",
+            "Because cathode rays could split atoms"
+        ],
+        "answer": 1,
+        "explanation": "Thomson observed that the properties of cathode rays (charge-to-mass ratio, deflection behaviour) were the same regardless of what metal was used as the cathode and what gas was filled in the tube. This universality strongly indicated that the particles (electrons) were fundamental components present in all types of atoms, not just specific materials.",
+        "tags": [
+            "Cathode Rays",
+            "Thomson Experiment",
+            "Electrons"
+        ]
+    },
+    {
+        "question": "If carbon has three isotopes ($^{12}_{6}\mathrm{C}$, $^{13}_{6}\mathrm{C}$, $^{14}_{6}\mathrm{C}$), what is the minimum and maximum number of neutrons possible, and why do these isotopes have the same chemical properties?",
+        "options": [
+            "6, 7, 8 neutrons; same chemical properties because same number of electrons",
+            "6, 7, 8 neutrons; same chemical properties because same number of protons",
+            "6, 6, 6 neutrons; same chemical properties because same atomic number",
+            "6, 7, 8 neutrons; different chemical properties because different number of neutrons"
+        ],
+        "answer": 0,
+        "explanation": "For carbon isotopes: $^{12}\mathrm{C}$ has 6 neutrons, $^{13}\mathrm{C}$ has 7 neutrons, $^{14}\mathrm{C}$ has 8 neutrons. All have 6 protons and 6 electrons. Since chemical properties depend on electron configuration (especially valence electrons), and all carbon isotopes have the same electronic configuration (2,4), they exhibit identical chemical behaviour despite having different numbers of neutrons.",
+        "tags": [
+            "Carbon Isotopes",
+            "Chemical Properties",
+            "Neutron Calculation"
+        ]
+    },
+    {
+        "question": "What would happen to an atom of sodium (Z=11) if it loses one electron during a chemical reaction, and how would this affect its valency and stability?",
+        "options": [
+            "It becomes Na⁺ with configuration 2, 8 (neon-like), achieving stability with valency 1",
+            "It becomes Na⁻ with configuration 2, 8, 1, achieving stability with valency 0",
+            "It becomes Na²⁺ with configuration 2, 7, becoming unstable",
+            "It remains neutral with configuration 2, 8, 1, and does not react"
+        ],
+        "answer": 0,
+        "explanation": "Sodium has electronic configuration 2, 8, 1. When it loses one electron, it becomes Na⁺ (sodium ion) with configuration 2, 8 - the same as neon (stable octet). This requires less energy than gaining 7 electrons. The valency of sodium is 1 (it can lose one electron). The resulting Na⁺ ion is stable due to complete octet in the outermost shell.",
+        "tags": [
+            "Ion Formation",
+            "Valency",
+            "Stability"
+        ]
+    }
+]
