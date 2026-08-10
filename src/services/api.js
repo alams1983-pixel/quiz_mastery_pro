@@ -54,6 +54,16 @@ export async function request(endpoint, options = {}) {
   return data;
 }
 
+function toBase64Utf8(str) {
+  try {
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+      return String.fromCharCode('0x' + p1);
+    }));
+  } catch (e) {
+    return null;
+  }
+}
+
 export const api = {
   // Auth
   register: (body) => request('/auth/register', { method: 'POST', body }),
@@ -86,7 +96,14 @@ export const api = {
   updateQuiz: (id, body) => request(`/quizzes/${id}`, { method: 'PUT', body }),
   deleteQuiz: (id) => request(`/quizzes/${id}`, { method: 'DELETE' }),
   addQuestion: (quizId, formData) => request(`/quizzes/${quizId}/questions`, { method: 'POST', body: formData }),
-  bulkUploadQuestions: (quizId, questions) => request(`/quizzes/${quizId}/questions/bulk`, { method: 'POST', body: { questions } }),
+  bulkUploadQuestions: (quizId, questions) => {
+    const jsonStr = JSON.stringify(questions);
+    const encodedPayload = toBase64Utf8(jsonStr);
+    return request(`/quizzes/${quizId}/questions/bulk`, { 
+      method: 'POST', 
+      body: { encodedPayload } 
+    });
+  },
   updateQuestion: (qId, formData) => request(`/quizzes/questions/${qId}`, { method: 'PUT', body: formData }),
   deleteQuestion: (qId) => request(`/quizzes/questions/${qId}`, { method: 'DELETE' }),
 

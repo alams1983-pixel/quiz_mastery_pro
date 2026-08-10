@@ -46,10 +46,10 @@ app.use('/api/analytics', analyticsRoutes);
 // ==========================================
 
 app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        time: new Date().toISOString()
-    });
+  res.json({
+    status: 'ok',
+    time: new Date().toISOString()
+  });
 });
 
 // ==========================================
@@ -70,21 +70,20 @@ app.use(express.static(frontendPath));
 
 // SPA fallback
 app.use((req, res, next) => {
+  // Don't interfere with API routes
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
 
-    // Don't interfere with API routes
-    if (req.path.startsWith('/api/')) {
-        return next();
-    }
+  // If frontend exists, serve index.html
+  if (fs.existsSync(frontendIndex)) {
+    return res.sendFile(frontendIndex);
+  }
 
-    // If frontend exists, serve index.html
-    if (fs.existsSync(frontendIndex)) {
-        return res.sendFile(frontendIndex);
-    }
-
-    // Otherwise show useful error
-    res.status(500).send(
-        'Frontend build not found. Expected: ' + frontendIndex
-    );
+  // Otherwise show useful error
+  res.status(500).send(
+    'Frontend build not found. Expected: ' + frontendIndex
+  );
 });
 
 // ==========================================
@@ -92,16 +91,15 @@ app.use((req, res, next) => {
 // ==========================================
 
 async function startServer() {
+  try {
+    await initDatabase();
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error);
+  }
 
-    try {
-        await initDatabase();
-    } catch (error) {
-        console.error('❌ Database initialization failed:', error);
-    }
-
-    app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-    });
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
 }
 
 startServer();

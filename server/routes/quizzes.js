@@ -25,6 +25,22 @@ function safeParseJSON(str, fallback = null) {
   }
 }
 
+function fromBase64Utf8(str) {
+  if (typeof str !== 'string') return null;
+  try {
+    const raw = Buffer.from(str, 'base64').toString('utf8');
+    const jsonStr = decodeURIComponent(raw.split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    return safeParseJSON(jsonStr, null);
+  } catch (e) {
+    try {
+      const direct = Buffer.from(str, 'base64').toString('utf8');
+      return safeParseJSON(direct, null);
+    } catch (e2) {
+      return null;
+    }
+  }
+}
+
 // Setup Multer for image upload
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -220,7 +236,14 @@ router.post('/:id/questions', requireAdmin, upload.single('image'), async (req, 
 router.post('/:id/questions/bulk', requireAdmin, async (req, res) => {
   try {
     const quizId = req.params.id;
-    const { questions } = req.body; // Array of question objects
+    let { questions, encodedPayload } = req.body;
+
+    if (encodedPayload) {
+      const decoded = fromBase64Utf8(encodedPayload);
+      if (Array.isArray(decoded)) {
+        questions = decoded;
+      }
+    }
 
     if (!Array.isArray(questions) || questions.length === 0) {
       return res.status(400).json({ error: 'No questions provided for bulk upload.' });
