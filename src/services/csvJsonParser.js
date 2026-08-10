@@ -34,6 +34,13 @@ export function cleanAndParseJSON(jsonString) {
   }
 }
 
+export function unescapeUnicode(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
+    return String.fromCharCode(parseInt(hex, 16));
+  });
+}
+
 export function parseJSONQuestions(jsonString) {
   try {
     let data = cleanAndParseJSON(jsonString);
@@ -71,12 +78,16 @@ export function parseJSONQuestions(jsonString) {
         }
       }
 
+      const rawOpts = Array.isArray(parsedOptions) ? parsedOptions : [String(parsedOptions)];
+
       return {
-        question_text: String(qText),
-        options: Array.isArray(parsedOptions) ? parsedOptions : [String(parsedOptions)],
+        question_text: unescapeUnicode(String(qText)),
+        options: rawOpts.map(o => unescapeUnicode(String(o))),
         correct_answer_index: parseInt(ans, 10) || 0,
-        explanation: item.explanation || '',
-        tags: Array.isArray(item.tags) ? item.tags : (typeof item.tags === 'string' ? item.tags.split(';').map(t => t.trim()) : [])
+        explanation: unescapeUnicode(String(item.explanation || '')),
+        tags: Array.isArray(item.tags) 
+          ? item.tags.map(t => unescapeUnicode(String(t))) 
+          : (typeof item.tags === 'string' ? item.tags.split(';').map(t => unescapeUnicode(t.trim())) : [])
       };
     });
   } catch (e) {

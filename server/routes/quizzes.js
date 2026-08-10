@@ -41,6 +41,26 @@ function fromBase64Utf8(str) {
   }
 }
 
+function unescapeUnicode(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
+    return String.fromCharCode(parseInt(hex, 16));
+  });
+}
+
+function deepUnescape(val) {
+  if (typeof val === 'string') return unescapeUnicode(val);
+  if (Array.isArray(val)) return val.map(deepUnescape);
+  if (val && typeof val === 'object') {
+    const res = {};
+    for (const key of Object.keys(val)) {
+      res[key] = deepUnescape(val[key]);
+    }
+    return res;
+  }
+  return val;
+}
+
 // Setup Multer for image upload
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -128,8 +148,10 @@ router.get('/:id/questions', async (req, res) => {
 
     const formatted = questions.map(q => ({
       ...q,
-      options: safeParseJSON(q.options_json, []),
-      tags: safeParseJSON(q.tags_json, [])
+      question_text: unescapeUnicode(q.question_text),
+      explanation: unescapeUnicode(q.explanation),
+      options: deepUnescape(safeParseJSON(q.options_json, [])),
+      tags: deepUnescape(safeParseJSON(q.tags_json, []))
     }));
 
     res.json({ questions: formatted });
@@ -253,17 +275,19 @@ router.post('/:id/questions/bulk', requireAdmin, async (req, res) => {
     for (const q of questions) {
       if (!q.question_text || !q.options) continue;
 
-      const opts = Array.isArray(q.options) ? q.options : safeParseJSON(q.options, [String(q.options)]);
-      const tags = Array.isArray(q.tags) ? q.tags : safeParseJSON(q.tags, []);
+      const opts = deepUnescape(Array.isArray(q.options) ? q.options : safeParseJSON(q.options, [String(q.options)]));
+      const tags = deepUnescape(Array.isArray(q.tags) ? q.tags : safeParseJSON(q.tags, []));
+      const qText = unescapeUnicode(q.question_text);
+      const qExpl = unescapeUnicode(q.explanation || '');
 
       await pool.query(
         'INSERT INTO questions (quiz_id, question_text, options_json, correct_answer_index, explanation, tags_json) VALUES (?, ?, ?, ?, ?, ?)',
         [
           quizId,
-          q.question_text,
+          qText,
           JSON.stringify(opts),
           parseInt(q.correct_answer_index, 10) || 0,
-          q.explanation || '',
+          qExpl,
           JSON.stringify(tags)
         ]
       );
