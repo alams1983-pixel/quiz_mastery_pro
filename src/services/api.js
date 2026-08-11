@@ -19,9 +19,41 @@ export function setUser(user) {
   else localStorage.removeItem('user');
 }
 
+const memoryCache = new Map();
+
+export const cache = {
+  get(key) {
+    const entry = memoryCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiry) {
+      memoryCache.delete(key);
+      return null;
+    }
+    return entry.data;
+  },
+  set(key, data, ttlMs = 300000) {
+    memoryCache.set(key, {
+      data,
+      expiry: Date.now() + ttlMs
+    });
+  },
+  invalidate(keyPattern) {
+    if (!keyPattern) {
+      memoryCache.clear();
+      return;
+    }
+    for (const key of memoryCache.keys()) {
+      if (key.includes(keyPattern)) {
+        memoryCache.delete(key);
+      }
+    }
+  }
+};
+
 export function logout() {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
+  cache.invalidate();
 }
 
 export async function request(endpoint, options = {}) {
@@ -75,37 +107,112 @@ export const api = {
   updateUserRole: (id, role) => request(`/auth/users/${id}/role`, { method: 'PUT', body: { role } }),
 
   // Categories
-  getCategories: () => request('/categories'),
-  createCategory: (body) => request('/categories', { method: 'POST', body }),
-  updateCategory: (id, body) => request(`/categories/${id}`, { method: 'PUT', body }),
-  deleteCategory: (id) => request(`/categories/${id}`, { method: 'DELETE' }),
+  getCategories: async () => {
+    const cached = cache.get('categories');
+    if (cached) return cached;
+    const res = await request('/categories');
+    cache.set('categories', res, 600000); // 10 min TTL
+    return res;
+  },
+  createCategory: async (body) => {
+    const res = await request('/categories', { method: 'POST', body });
+    cache.invalidate('categories');
+    return res;
+  },
+  updateCategory: async (id, body) => {
+    const res = await request(`/categories/${id}`, { method: 'PUT', body });
+    cache.invalidate('categories');
+    return res;
+  },
+  deleteCategory: async (id) => {
+    const res = await request(`/categories/${id}`, { method: 'DELETE' });
+    cache.invalidate('categories');
+    return res;
+  },
 
   // Tags
-  getTags: () => request('/tags'),
-  createTag: (body) => request('/tags', { method: 'POST', body }),
-  deleteTag: (id) => request(`/tags/${id}`, { method: 'DELETE' }),
+  getTags: async () => {
+    const cached = cache.get('tags');
+    if (cached) return cached;
+    const res = await request('/tags');
+    cache.set('tags', res, 600000); // 10 min TTL
+    return res;
+  },
+  createTag: async (body) => {
+    const res = await request('/tags', { method: 'POST', body });
+    cache.invalidate('tags');
+    return res;
+  },
+  deleteTag: async (id) => {
+    const res = await request(`/tags/${id}`, { method: 'DELETE' });
+    cache.invalidate('tags');
+    return res;
+  },
 
   // Quizzes
-  getQuizzes: (params = {}) => {
+  getQuizzes: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
-    return request(`/quizzes${query ? '?' + query : ''}`);
+    const cacheKey = `quizzes_${query}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+    const res = await request(`/quizzes${query ? '?' + query : ''}`);
+    cache.set(cacheKey, res, 300000); // 5 min TTL
+    return res;
   },
   getQuiz: (id) => request(`/quizzes/${id}`),
-  getQuestions: (quizId) => request(`/quizzes/${quizId}/questions`),
-  createQuiz: (body) => request('/quizzes', { method: 'POST', body }),
-  updateQuiz: (id, body) => request(`/quizzes/${id}`, { method: 'PUT', body }),
-  deleteQuiz: (id) => request(`/quizzes/${id}`, { method: 'DELETE' }),
-  addQuestion: (quizId, formData) => request(`/quizzes/${quizId}/questions`, { method: 'POST', body: formData }),
-  bulkUploadQuestions: (quizId, questions) => {
+  getQuestions: async (quizId) => {
+    const cacheKey = `questions_${quizId}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+    const res = await request(`/quizzes/${quizId}/questions`);
+    cache.set(cacheKey, res, 300000); // 5 min TTL
+    return res;
+  },
+  createQuiz: async (body) => {
+    const res = await request('/quizzes', { method: 'POST', body });
+    cache.invalidate('quizzes');
+    return res;
+  },
+  updateQuiz: async (id, body) => {
+    const res = await request(`/quizzes/${id}`, { method: 'PUT', body });
+    cache.invalidate('quizzes');
+    return res;
+  },
+  deleteQuiz: async (id) => {
+    const res = await request(`/quizzes/${id}`, { method: 'DELETE' });
+    cache.invalidate('quizzes');
+    cache.invalidate(`questions_${id}`);
+    return res;
+  },
+  addQuestion: async (quizId, formData) => {
+    const res = await request(`/quizzes/${quizId}/questions`, { method: 'POST', body: formData });
+    cache.invalidate(`questions_${quizId}`);
+    cache.invalidate('quizzes');
+    return res;
+  },
+  bulkUploadQuestions: async (quizId, questions) => {
     const jsonStr = JSON.stringify(questions);
     const encodedPayload = toBase64Utf8(jsonStr);
-    return request(`/quizzes/${quizId}/questions/bulk`, { 
+    const res = await request(`/quizzes/${quizId}/questions/bulk`, { 
       method: 'POST', 
       body: { encodedPayload } 
     });
+    cache.invalidate(`questions_${quizId}`);
+    cache.invalidate('quizzes');
+    return res;
   },
-  updateQuestion: (qId, formData) => request(`/quizzes/questions/${qId}`, { method: 'PUT', body: formData }),
-  deleteQuestion: (qId) => request(`/quizzes/questions/${qId}`, { method: 'DELETE' }),
+  updateQuestion: async (qId, formData) => {
+    const res = await request(`/quizzes/questions/${qId}`, { method: 'PUT', body: formData });
+    cache.invalidate('questions');
+    cache.invalidate('quizzes');
+    return res;
+  },
+  deleteQuestion: async (qId) => {
+    const res = await request(`/quizzes/questions/${qId}`, { method: 'DELETE' });
+    cache.invalidate('questions');
+    cache.invalidate('quizzes');
+    return res;
+  },
 
   // Analytics
   logQuestion: (body) => request('/analytics/question-log', { method: 'POST', body }),

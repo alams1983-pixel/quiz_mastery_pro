@@ -14,6 +14,7 @@ router.get('/:filename', requireAuth, (req, res) => {
     return res.status(404).json({ error: 'Image file not found.' });
   }
 
+  res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
   res.sendFile(filePath);
 });
 

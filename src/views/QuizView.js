@@ -158,6 +158,7 @@ export function renderQuizView(quizId, customData, navigate) {
   let timerInterval = null;
   let isAnswered = false;
   let currentQuestion = null;
+  let currentShuffledOptions = [];
   let itemStartTime = 0;
   let questionTimings = {};
   let lastAttemptPayload = null;
@@ -289,15 +290,16 @@ export function renderQuizView(quizId, customData, navigate) {
       qImg.style.display = 'none';
     }
 
-    const labels = ['A', 'B', 'C', 'D', 'E'];
+    const labels = ['A', 'B', 'C', 'D', 'E', 'F'];
     optionsContainer.innerHTML = '';
-    const opts = currentQuestion.options || [];
+    const rawOpts = (currentQuestion.options || []).map((text, origIdx) => ({ text, origIdx }));
+    currentShuffledOptions = shuffle([...rawOpts]);
 
-    opts.forEach((opt, idx) => {
+    currentShuffledOptions.forEach((optObj, displayIdx) => {
       const btn = document.createElement('button');
       btn.className = 'option-btn';
-      btn.innerHTML = `<span class="opt-label">${labels[idx]}</span><span class="opt-text">${opt}</span>`;
-      btn.addEventListener('click', () => handleChoice(idx));
+      btn.innerHTML = `<span class="opt-label">${labels[displayIdx]}</span><span class="opt-text">${optObj.text}</span>`;
+      btn.addEventListener('click', () => handleChoice(displayIdx));
       optionsContainer.appendChild(btn);
     });
 
@@ -309,7 +311,7 @@ export function renderQuizView(quizId, customData, navigate) {
     renderMath(container.querySelector('#questionCard'));
   }
 
-  async function handleChoice(selectedIdx) {
+  async function handleChoice(displayIdx) {
     if (isAnswered) return;
     isAnswered = true;
 
@@ -319,12 +321,14 @@ export function renderQuizView(quizId, customData, navigate) {
     const optionBtns = optionsContainer.querySelectorAll('.option-btn');
     optionBtns.forEach(b => b.classList.add('disabled-opt'));
 
-    const isCorrect = (selectedIdx === currentQuestion.correct_answer_index);
+    const selectedOpt = currentShuffledOptions[displayIdx];
+    const isCorrect = (selectedOpt && selectedOpt.origIdx === currentQuestion.correct_answer_index);
     const correctOptText = currentQuestion.options[currentQuestion.correct_answer_index];
 
     optionBtns.forEach((b, idx) => {
-      if (idx === currentQuestion.correct_answer_index) b.classList.add('correct-opt');
-      if (idx === selectedIdx && !isCorrect) b.classList.add('wrong-opt');
+      const opt = currentShuffledOptions[idx];
+      if (opt && opt.origIdx === currentQuestion.correct_answer_index) b.classList.add('correct-opt');
+      if (idx === displayIdx && !isCorrect) b.classList.add('wrong-opt');
     });
 
     if (isCorrect) {
@@ -360,7 +364,7 @@ export function renderQuizView(quizId, customData, navigate) {
         quiz_id: quizId || currentQuestion.quiz_id,
         is_correct: isCorrect,
         time_spent_sec: timeSpentSec,
-        selected_option_index: selectedIdx
+        selected_option_index: selectedOpt ? selectedOpt.origIdx : 0
       }).catch(console.error);
     }
   }
