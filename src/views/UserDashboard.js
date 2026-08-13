@@ -1,5 +1,6 @@
 import { api } from '../services/api.js';
 import { renderCategoryTree } from '../components/CategoryTree.js';
+import { downloadQuizBookletPDF } from '../services/pdfGenerator.js';
 
 export function renderUserDashboard(navigate, startQuizSession) {
   const container = document.createElement('div');
@@ -120,13 +121,37 @@ export function renderUserDashboard(navigate, startQuizSession) {
 
           <div style="margin-bottom:16px;">${tagBadges}</div>
 
-          <button class="btn start-quiz-btn" style="width:100%;">
-            Start Quiz Session →
-          </button>
+          <div style="display:flex; gap:10px; margin-top:auto;">
+            <button class="btn start-quiz-btn" style="flex:1;">
+              Start Session →
+            </button>
+            <button class="btn btn-secondary download-pdf-btn" title="Download Question Booklet PDF" style="padding:10px 14px;">
+              📥 PDF
+            </button>
+          </div>
         `;
 
         card.querySelector('.start-quiz-btn').addEventListener('click', () => {
           startQuizSession(q.id);
+        });
+
+        card.querySelector('.download-pdf-btn').addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const pdfBtn = e.currentTarget;
+          const originalHTML = pdfBtn.innerHTML;
+          try {
+            pdfBtn.innerHTML = '⏳ PDF...';
+            pdfBtn.disabled = true;
+            const qRes = await api.getQuestions(q.id);
+            const questions = qRes.questions || [];
+            await downloadQuizBookletPDF({ quiz: q, questions });
+          } catch (err) {
+            console.error('PDF Generation Error:', err);
+            alert('Could not download PDF booklet. Please try again.');
+          } finally {
+            pdfBtn.innerHTML = originalHTML;
+            pdfBtn.disabled = false;
+          }
         });
 
         quizGrid.appendChild(card);
