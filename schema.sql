@@ -1,6 +1,6 @@
--- Create Database
-CREATE DATABASE IF NOT EXISTS edutor_quiz_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE edutor_quiz_db;
+-- Disable foreign key checks during schema creation
+SET FOREIGN_KEY_CHECKS = 0;
+
 
 -- 1. Institutes Table (Coaching Institute Tenants)
 CREATE TABLE IF NOT EXISTS institutes (
@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS quiz_tags (
     PRIMARY KEY (quiz_id, tag_id),
     FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5b-2. Batches Table
+CREATE TABLE IF NOT EXISTS batches (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    institute_id INT NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    code VARCHAR(50) NULL,
+    description TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 5c. Quiz-Batches Mapping Table
@@ -293,4 +304,8 @@ CREATE TABLE IF NOT EXISTS exam_item_logs (
     FOREIGN KEY (exam_question_id) REFERENCES exam_questions(id) ON DELETE CASCADE,
     FOREIGN KEY (section_id) REFERENCES exam_sections(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Re-enable foreign key checks
+SET FOREIGN_KEY_CHECKS = 1;
+
 
