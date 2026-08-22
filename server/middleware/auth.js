@@ -1,13 +1,18 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 dotenv.config();
 
-if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'edutorai_mastery_quiz_secret_key_2026')) {
-  console.error('FATAL: JWT_SECRET environment variable is missing or insecure in production environment.');
-  process.exit(1);
-}
+let JWT_SECRET = process.env.JWT_SECRET;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'edutorai_mastery_quiz_secret_key_2026';
+if (!JWT_SECRET || JWT_SECRET === 'edutorai_mastery_quiz_secret_key_2026') {
+  if (process.env.NODE_ENV === 'production') {
+    JWT_SECRET = crypto.randomBytes(32).toString('hex');
+    console.warn('⚠️ [SECURITY WARNING] JWT_SECRET is not configured in production environment variables! Generated a temporary 256-bit random key for this session.');
+  } else {
+    JWT_SECRET = 'edutorai_mastery_quiz_secret_key_2026';
+  }
+}
 
 export function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization;
