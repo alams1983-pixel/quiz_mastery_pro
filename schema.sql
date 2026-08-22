@@ -37,13 +37,19 @@ CREATE TABLE IF NOT EXISTS categories (
     parent_id INT NULL,
     description TEXT,
     icon VARCHAR(50) DEFAULT 'folder',
-    FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE CASCADE
+    institute_id INT NULL,
+    is_global BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE CASCADE,
+    FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. Tags Table
 CREATE TABLE IF NOT EXISTS tags (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) UNIQUE NOT NULL
+    name VARCHAR(50) NOT NULL,
+    institute_id INT NULL,
+    is_global BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 5. Quizzes Table
@@ -190,6 +196,7 @@ CREATE TABLE IF NOT EXISTS exams (
     scheduled_end DATETIME NULL,
     is_published BOOLEAN DEFAULT FALSE,
     is_public BOOLEAN DEFAULT FALSE,
+    is_all_batches BOOLEAN DEFAULT TRUE,
     allow_section_switch BOOLEAN DEFAULT TRUE,
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
