@@ -92,6 +92,25 @@ CREATE TABLE IF NOT EXISTS quiz_batches (
     FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 5d. Student-Batches Mapping Table
+CREATE TABLE IF NOT EXISTS student_batches (
+    user_id INT NOT NULL,
+    batch_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, batch_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5e. Exam-Batches Mapping Table
+CREATE TABLE IF NOT EXISTS exam_batches (
+    exam_id INT NOT NULL,
+    batch_id INT NOT NULL,
+    PRIMARY KEY (exam_id, batch_id),
+    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 6. Questions Table
 CREATE TABLE IF NOT EXISTS questions (
     id INT AUTO_INCREMENT PRIMARY KEY,
