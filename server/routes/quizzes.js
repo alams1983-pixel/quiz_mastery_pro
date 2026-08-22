@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import pool from '../db.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -26,18 +26,29 @@ function safeParseJSON(str, fallback = null) {
 }
 
 function fromBase64Utf8(str) {
-  if (typeof str !== 'string') return null;
+  if (typeof str !== 'string' || !str.trim()) return null;
   try {
     const raw = Buffer.from(str, 'base64').toString('utf8');
-    const jsonStr = decodeURIComponent(raw.split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-    return safeParseJSON(jsonStr, null);
-  } catch (e) {
     try {
-      const direct = Buffer.from(str, 'base64').toString('utf8');
-      return safeParseJSON(direct, null);
-    } catch (e2) {
-      return null;
-    }
+      const p = JSON.parse(raw);
+      if (Array.isArray(p)) return p;
+    } catch (e1) {}
+
+    try {
+      const p = JSON.parse(decodeURIComponent(escape(raw)));
+      if (Array.isArray(p)) return p;
+    } catch (e2) {}
+
+    try {
+      const jsonStr = decodeURIComponent(raw.split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      const p = JSON.parse(jsonStr);
+      if (Array.isArray(p)) return p;
+    } catch (e3) {}
+
+    return safeParseJSON(raw, null);
+  } catch (e) {
+    console.error('[SERVER] Base64 decode failed:', e);
+    return null;
   }
 }
 
@@ -77,23 +88,64 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// 1. Get Quizzes (Catalog view with category and tag filters)
-router.get('/', async (req, res) => {
+// Helper: Verify Admin ownership/permission for a Quiz
+async function verifyQuizOwnership(req, quizId) {
+  if (!req.user) return false;
+  if (req.user.role === 'super_admin') return true;
+
+  const [rows] = await pool.query('SELECT institute_id, created_by FROM quizzes WHERE id = ?', [quizId]);
+  if (rows.length === 0) return false;
+
+  const quiz = rows[0];
+  if (req.user.institute_id && quiz.institute_id && req.user.institute_id === quiz.institute_id) {
+    return true;
+  }
+  if (quiz.created_by && quiz.created_by === req.user.id) {
+    return true;
+  }
+  return false;
+}
+
+// 1. Get Quizzes (Scoped by role, institute, student batch, and publication status)
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { category_id, tag_id, search } = req.query;
+    const user = req.user;
 
     let sql = `
       SELECT q.*, c.name as category_name, c.icon as category_icon,
              COUNT(DISTINCT quest.id) as question_count,
-             GROUP_CONCAT(DISTINCT t.name) as tag_names
+             GROUP_CONCAT(DISTINCT t.name) as tag_names,
+             GROUP_CONCAT(DISTINCT t.id) as tag_ids,
+             GROUP_CONCAT(DISTINCT qb.batch_id) as batch_ids
       FROM quizzes q
       LEFT JOIN categories c ON q.category_id = c.id
       LEFT JOIN questions quest ON quest.quiz_id = q.id
       LEFT JOIN quiz_tags qt ON qt.quiz_id = q.id
       LEFT JOIN tags t ON qt.tag_id = t.id
+      LEFT JOIN quiz_batches qb ON qb.quiz_id = q.id
       WHERE 1=1
     `;
     const params = [];
+
+    // Multitenant & Role Scoping
+    if (!user || user.role === 'user') {
+      sql += ` AND q.is_published = 1 AND (
+        q.is_public = 1 OR (
+          q.institute_id = ? AND (
+            q.is_all_batches = 1 OR q.id IN (
+              SELECT qb_sub.quiz_id FROM quiz_batches qb_sub
+              JOIN student_batches sb_sub ON qb_sub.batch_id = sb_sub.batch_id
+              WHERE sb_sub.user_id = ?
+            )
+          )
+        )
+      )`;
+      params.push(user ? (user.institute_id || -1) : -1, user ? user.id : -1);
+    } else if (user.role === 'institute_admin' || user.role === 'admin') {
+      sql += ` AND (q.institute_id = ? OR q.is_public = 1)`;
+      params.push(user.institute_id || -1);
+    }
 
     if (category_id) {
       sql += ` AND q.category_id = ?`;
@@ -119,31 +171,66 @@ router.get('/', async (req, res) => {
 });
 
 // 2. Get Single Quiz Details
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const quizId = req.params.id;
     const [quizzes] = await pool.query(`
-      SELECT q.*, c.name as category_name
+      SELECT q.*, c.name as category_name,
+             GROUP_CONCAT(DISTINCT qb.batch_id) as batch_ids
       FROM quizzes q
       LEFT JOIN categories c ON q.category_id = c.id
+      LEFT JOIN quiz_batches qb ON qb.quiz_id = q.id
       WHERE q.id = ?
+      GROUP BY q.id
     `, [quizId]);
 
     if (quizzes.length === 0) {
       return res.status(404).json({ error: 'Quiz not found.' });
     }
 
+    const quiz = quizzes[0];
+    const user = req.user;
+
+    // Check student view permissions for private/draft quizzes
+    if (!user || user.role === 'user') {
+      if (!quiz.is_published) {
+        return res.status(403).json({ error: 'This practice quiz is currently in draft mode.' });
+      }
+      if (!quiz.is_public && quiz.institute_id !== (user?.institute_id || -1)) {
+        return res.status(403).json({ error: 'Access denied to private quiz.' });
+      }
+    }
+
     const [questions] = await pool.query('SELECT COUNT(*) as total FROM questions WHERE quiz_id = ?', [quizId]);
-    res.json({ quiz: quizzes[0], questionCount: questions[0].total });
+    res.json({ quiz, questionCount: questions[0].total });
   } catch (err) {
     res.status(500).json({ error: 'Error fetching quiz details.' });
   }
 });
 
 // 3. Get Questions for a Quiz
-router.get('/:id/questions', async (req, res) => {
+router.get('/:id/questions', optionalAuth, async (req, res) => {
   try {
     const quizId = req.params.id;
+
+    // Verify Quiz Access
+    const [quizzes] = await pool.query('SELECT is_published, is_public, institute_id FROM quizzes WHERE id = ?', [quizId]);
+    if (quizzes.length === 0) {
+      return res.status(404).json({ error: 'Quiz not found.' });
+    }
+
+    const quiz = quizzes[0];
+    const user = req.user;
+
+    if (!user || user.role === 'user') {
+      if (!quiz.is_published) {
+        return res.status(403).json({ error: 'This practice quiz is currently draft and unpublished.' });
+      }
+      if (!quiz.is_public && quiz.institute_id !== (user?.institute_id || -1)) {
+        return res.status(403).json({ error: 'Access denied to private quiz.' });
+      }
+    }
+
     const [questions] = await pool.query('SELECT * FROM questions WHERE quiz_id = ? ORDER BY id ASC', [quizId]);
 
     const formatted = questions.map(q => ({
@@ -164,39 +251,80 @@ router.get('/:id/questions', async (req, res) => {
 // 4. Create Quiz (Admin)
 router.post('/', requireAdmin, async (req, res) => {
   try {
-    const { title, description, category_id, tag_ids } = req.body;
+    const { title, description, category_id, tag_ids, is_public, is_published, is_all_batches, batch_ids } = req.body;
     if (!title) return res.status(400).json({ error: 'Quiz title is required.' });
 
+    const instId = req.user.role === 'super_admin' ? (req.body.institute_id || req.user.institute_id || null) : req.user.institute_id;
+    if (req.user.role !== 'super_admin' && !instId) {
+      return res.status(400).json({ error: 'Institute ID is required to create a quiz.' });
+    }
+
+    // Global Master Category Validation: Globally public quizzes MUST use Super Admin Global Master Category
+    if (is_public && category_id) {
+      const [cats] = await pool.query('SELECT is_global, institute_id FROM categories WHERE id = ?', [category_id]);
+      if (cats.length > 0 && cats[0].institute_id !== null && !cats[0].is_global) {
+        return res.status(400).json({ error: 'To publish a quiz globally, you must select a standardized Global Master Category (created by Super Admin).' });
+      }
+    }
+
+    const isAllBatchesVal = is_all_batches !== undefined ? !!is_all_batches : (!Array.isArray(batch_ids) || batch_ids.length === 0);
+    const isPublishedVal = is_published !== undefined ? (is_published ? 1 : 0) : 1;
+
     const [result] = await pool.query(
-      'INSERT INTO quizzes (title, description, category_id, created_by) VALUES (?, ?, ?, ?)',
-      [title, description || '', category_id || null, req.user.id]
+      'INSERT INTO quizzes (title, description, category_id, institute_id, is_public, is_published, is_all_batches, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [title.trim(), description || '', category_id || null, instId || null, is_public ? 1 : 0, isPublishedVal, isAllBatchesVal ? 1 : 0, req.user.id]
     );
 
     const quizId = result.insertId;
 
+    // Attach tags
     if (Array.isArray(tag_ids) && tag_ids.length > 0) {
       for (const tagId of tag_ids) {
         await pool.query('INSERT IGNORE INTO quiz_tags (quiz_id, tag_id) VALUES (?, ?)', [quizId, tagId]);
       }
     }
 
+    // Attach batches
+    if (!isAllBatchesVal && Array.isArray(batch_ids) && batch_ids.length > 0) {
+      for (const bId of batch_ids) {
+        await pool.query('INSERT IGNORE INTO quiz_batches (quiz_id, batch_id) VALUES (?, ?)', [quizId, bId]);
+      }
+    }
+
     res.status(201).json({ message: 'Quiz created successfully.', quizId });
   } catch (err) {
+    console.error('Create Quiz Error:', err);
     res.status(500).json({ error: 'Error creating quiz.' });
   }
 });
 
-// 5. Update Quiz (Admin)
+// 5. Update Quiz (Admin - with strict ownership check)
 router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const quizId = req.params.id;
-    const { title, description, category_id, tag_ids } = req.body;
+    const isAllowed = await verifyQuizOwnership(req, quizId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this practice quiz.' });
+    }
+
+    const { title, description, category_id, tag_ids, is_public, is_published, is_all_batches, batch_ids } = req.body;
+
+    if (is_public && category_id) {
+      const [cats] = await pool.query('SELECT is_global, institute_id FROM categories WHERE id = ?', [category_id]);
+      if (cats.length > 0 && cats[0].institute_id !== null && !cats[0].is_global) {
+        return res.status(400).json({ error: 'To publish a quiz globally, you must select a standardized Global Master Category.' });
+      }
+    }
+
+    const isAllBatchesVal = is_all_batches !== undefined ? !!is_all_batches : (!Array.isArray(batch_ids) || batch_ids.length === 0);
+    const isPublishedVal = is_published !== undefined ? (is_published ? 1 : 0) : 1;
 
     await pool.query(
-      'UPDATE quizzes SET title = ?, description = ?, category_id = ? WHERE id = ?',
-      [title, description || '', category_id || null, quizId]
+      'UPDATE quizzes SET title = ?, description = ?, category_id = ?, is_public = ?, is_published = ?, is_all_batches = ? WHERE id = ?',
+      [title.trim(), description || '', category_id || null, is_public ? 1 : 0, isPublishedVal, isAllBatchesVal ? 1 : 0, quizId]
     );
 
+    // Update Tags
     if (Array.isArray(tag_ids)) {
       await pool.query('DELETE FROM quiz_tags WHERE quiz_id = ?', [quizId]);
       for (const tagId of tag_ids) {
@@ -204,26 +332,46 @@ router.put('/:id', requireAdmin, async (req, res) => {
       }
     }
 
+    // Update Batches
+    await pool.query('DELETE FROM quiz_batches WHERE quiz_id = ?', [quizId]);
+    if (!isAllBatchesVal && Array.isArray(batch_ids) && batch_ids.length > 0) {
+      for (const bId of batch_ids) {
+        await pool.query('INSERT IGNORE INTO quiz_batches (quiz_id, batch_id) VALUES (?, ?)', [quizId, bId]);
+      }
+    }
+
     res.json({ message: 'Quiz updated successfully.' });
   } catch (err) {
+    console.error('Update Quiz Error:', err);
     res.status(500).json({ error: 'Error updating quiz.' });
   }
 });
 
-// 6. Delete Quiz (Admin)
+// 6. Delete Quiz (Admin - with strict ownership check)
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    await pool.query('DELETE FROM quizzes WHERE id = ?', [req.params.id]);
+    const quizId = req.params.id;
+    const isAllowed = await verifyQuizOwnership(req, quizId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to delete this practice quiz.' });
+    }
+
+    await pool.query('DELETE FROM quizzes WHERE id = ?', [quizId]);
     res.json({ message: 'Quiz deleted successfully.' });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting quiz.' });
   }
 });
 
-// 7. Add Question to Quiz (Admin - with optional image upload)
+// 7. Add Question to Quiz (Admin - with ownership check)
 router.post('/:id/questions', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const quizId = req.params.id;
+    const isAllowed = await verifyQuizOwnership(req, quizId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to add questions to this practice quiz.' });
+    }
+
     const { question_text, options, correct_answer_index, explanation, tags } = req.body;
 
     if (!question_text || !options) {
@@ -254,10 +402,15 @@ router.post('/:id/questions', requireAdmin, upload.single('image'), async (req, 
   }
 });
 
-// 8. Bulk Add Questions (Admin)
+// 8. Bulk Add Questions (Admin - with ownership check)
 router.post('/:id/questions/bulk', requireAdmin, async (req, res) => {
   try {
     const quizId = req.params.id;
+    const isAllowed = await verifyQuizOwnership(req, quizId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to import questions to this practice quiz.' });
+    }
+
     let { questions, encodedPayload } = req.body;
 
     if (encodedPayload) {
@@ -272,39 +425,72 @@ router.post('/:id/questions/bulk', requireAdmin, async (req, res) => {
     }
 
     let count = 0;
-    for (const q of questions) {
-      if (!q.question_text || !q.options) continue;
+    const skippedDetails = [];
 
-      const opts = deepUnescape(Array.isArray(q.options) ? q.options : safeParseJSON(q.options, [String(q.options)]));
-      const tags = deepUnescape(Array.isArray(q.tags) ? q.tags : safeParseJSON(q.tags, []));
-      const qText = unescapeUnicode(q.question_text);
-      const qExpl = unescapeUnicode(q.explanation || '');
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const qText = unescapeUnicode(q.question_text_en || q.question_en || q.question_text || q.question || '');
+      
+      let optsArray = q.options_en;
+      if (!optsArray || !Array.isArray(optsArray) || optsArray.length === 0) {
+        optsArray = Array.isArray(q.options) ? q.options : safeParseJSON(q.options, []);
+      }
+
+      if (!qText || !optsArray || !Array.isArray(optsArray) || optsArray.length === 0) {
+        const reason = `Question #${i + 1} missing text or options`;
+        skippedDetails.push(reason);
+        continue;
+      }
+
+      const correctIdx = q.correct_option_index !== undefined
+        ? parseInt(q.correct_option_index, 10)
+        : (q.answer !== undefined
+            ? parseInt(q.answer, 10)
+            : (q.correct_answer !== undefined ? parseInt(q.correct_answer, 10) : (parseInt(q.correct_answer_index, 10) || 0)));
+
+      const qExpl = unescapeUnicode(q.explanation_en || q.explanation || '');
 
       await pool.query(
         'INSERT INTO questions (quiz_id, question_text, options_json, correct_answer_index, explanation, tags_json) VALUES (?, ?, ?, ?, ?, ?)',
         [
           quizId,
           qText,
-          JSON.stringify(opts),
-          parseInt(q.correct_answer_index, 10) || 0,
+          JSON.stringify(optsArray),
+          correctIdx,
           qExpl,
-          JSON.stringify(tags)
+          '[]'
         ]
       );
       count++;
     }
 
+    if (count === 0) {
+      return res.status(400).json({ 
+        error: `0 out of ${questions.length} questions could be inserted. Sample skip reasons: ${skippedDetails.slice(0, 3).join('; ')}`
+      });
+    }
+
     res.json({ message: `Successfully inserted ${count} questions.` });
   } catch (err) {
     console.error('Bulk Upload Error:', err);
-    res.status(500).json({ error: 'Error processing bulk upload.' });
+    res.status(500).json({ error: `Error processing bulk upload: ${err.message}` });
   }
 });
 
-// 9. Update Single Question (Admin)
+// 9. Update Single Question (Admin - with ownership check)
 router.put('/questions/:qId', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const qId = req.params.qId;
+
+    // Get parent quiz ID
+    const [qRows] = await pool.query('SELECT quiz_id FROM questions WHERE id = ?', [qId]);
+    if (qRows.length === 0) return res.status(404).json({ error: 'Question not found.' });
+
+    const isAllowed = await verifyQuizOwnership(req, qRows[0].quiz_id);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to edit this question.' });
+    }
+
     const { question_text, options, correct_answer_index, explanation, tags } = req.body;
 
     let parsedOptions = options;
@@ -335,10 +521,20 @@ router.put('/questions/:qId', requireAdmin, upload.single('image'), async (req, 
   }
 });
 
-// 10. Delete Single Question (Admin)
+// 10. Delete Single Question (Admin - with ownership check)
 router.delete('/questions/:qId', requireAdmin, async (req, res) => {
   try {
-    await pool.query('DELETE FROM questions WHERE id = ?', [req.params.qId]);
+    const qId = req.params.qId;
+
+    const [qRows] = await pool.query('SELECT quiz_id FROM questions WHERE id = ?', [qId]);
+    if (qRows.length === 0) return res.status(404).json({ error: 'Question not found.' });
+
+    const isAllowed = await verifyQuizOwnership(req, qRows[0].quiz_id);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to delete this question.' });
+    }
+
+    await pool.query('DELETE FROM questions WHERE id = ?', [qId]);
     res.json({ message: 'Question deleted.' });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting question.' });

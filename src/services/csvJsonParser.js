@@ -1,27 +1,17 @@
 export function cleanAndParseJSON(jsonString) {
   if (typeof jsonString !== 'string') return jsonString;
 
-  // Try direct parse first
   try {
     return JSON.parse(jsonString);
   } catch (initialErr) {
-    // Attempt auto-repair
     let cleaned = jsonString;
-
-    // 1. Remove JS-style comments
     cleaned = cleaned.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-
-    // 2. Fix unescaped backslashes inside JSON strings (e.g. \mathrm, \Delta, \frac, \ce, \int, \times)
-    // Valid JSON escape sequences: \", \\, \/, \b, \f, \n, \r, \t, \uHEX
     cleaned = cleaned.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
-
-    // 3. Remove trailing commas before closing brackets or braces
     cleaned = cleaned.replace(/,(\s*[\}\]])/g, '$1');
 
     try {
       return JSON.parse(cleaned);
     } catch (secondErr) {
-      // 4. Advanced repair: try replacing single quotes around keys/values if needed
       try {
         const relaxedCleaned = cleaned
           .replace(/'/g, '"')
@@ -43,9 +33,10 @@ export function unescapeUnicode(str) {
 
 export function parseJSONQuestions(jsonString) {
   try {
+    console.log('[DEBUG csvJsonParser] Incoming jsonString length:', jsonString?.length);
     let data = cleanAndParseJSON(jsonString);
-    
-    // Support root object wrapping questions like { "questions": [...] } or { "data": [...] }
+    console.log('[DEBUG csvJsonParser] Parsed raw JSON data:', data);
+
     if (!Array.isArray(data) && typeof data === 'object' && data !== null) {
       if (Array.isArray(data.questions)) {
         data = data.questions;
@@ -57,40 +48,61 @@ export function parseJSONQuestions(jsonString) {
     }
 
     if (!Array.isArray(data)) {
-      throw new Error('JSON data must be an array of question objects or contain a questions array.');
+      throw new Error('JSON data must be an array of question objects.');
     }
 
-    return data.map((item, index) => {
-      const qText = item.question || item.question_text || item.title || '';
-      const opts = item.options || item.choices || [];
-      const ans = item.answer !== undefined ? item.answer : (item.correct_answer_index !== undefined ? item.correct_answer_index : item.correct_answer);
+    const parsed = data.map((item, index) => {
+      const qTextEn = item.question_en || item.question_text_en || item.question || item.question_text || item.title || '';
+      const qTextHi = item.question_hi || item.question_text_hi || '';
 
-      if (!qText || !opts || ans === undefined) {
-        throw new Error(`Item ${index + 1} is missing required fields (question/question_text, options, answer/correct_answer_index).`);
+      const optsEn = item.options_en || item.options || item.choices || [];
+      const optsHi = item.options_hi || [];
+
+      const ans = item.correct_option_index !== undefined 
+        ? item.correct_option_index 
+        : (item.answer !== undefined ? item.answer : item.correct_answer);
+
+      if (!qTextEn || !optsEn || ans === undefined) {
+        console.error(`[DEBUG csvJsonParser] Item ${index + 1} missing required fields:`, { qTextEn, optsEn, ans, item });
+        throw new Error(`Item ${index + 1} is missing required fields (question_en, options_en, correct_option_index).`);
       }
 
-      let parsedOptions = opts;
-      if (typeof opts === 'string') {
-        try {
-          parsedOptions = cleanAndParseJSON(opts);
-        } catch (e) {
-          parsedOptions = opts.split(',').map(s => s.trim());
+      const parseArrayField = (field) => {
+        if (Array.isArray(field)) return field.map(x => unescapeUnicode(String(x)));
+        if (typeof field === 'string') {
+          try {
+            return JSON.parse(field).map(x => unescapeUnicode(String(x)));
+          } catch (e) {
+            return field.split(',').map(s => unescapeUnicode(s.trim()));
+          }
         }
-      }
-
-      const rawOpts = Array.isArray(parsedOptions) ? parsedOptions : [String(parsedOptions)];
+        return [];
+      };
 
       return {
-        question_text: unescapeUnicode(String(qText)),
-        options: rawOpts.map(o => unescapeUnicode(String(o))),
-        correct_answer_index: parseInt(ans, 10) || 0,
-        explanation: unescapeUnicode(String(item.explanation || '')),
-        tags: Array.isArray(item.tags) 
-          ? item.tags.map(t => unescapeUnicode(String(t))) 
-          : (typeof item.tags === 'string' ? item.tags.split(';').map(t => unescapeUnicode(t.trim())) : [])
+        category_name: item.category_name || item.category || '',
+        tag_names: item.tag_names || item.tags || [],
+        passage_text_en: item.passage_text_en || item.passage_en || item.passage || '',
+        passage_text_hi: item.passage_text_hi || item.passage_hi || '',
+        passage_image_url: item.passage_image_url || item.passage_image || '',
+        question_text_en: unescapeUnicode(String(qTextEn)),
+        question_text_hi: unescapeUnicode(String(qTextHi)),
+        options_en: parseArrayField(optsEn),
+        options_hi: parseArrayField(optsHi),
+        options_images: parseArrayField(item.options_images || item.option_images || []),
+        correct_option_index: parseInt(ans, 10) || 0,
+        explanation_en: unescapeUnicode(String(item.explanation_en || item.explanation || '')),
+        explanation_hi: unescapeUnicode(String(item.explanation_hi || '')),
+        explanation_image_url: item.explanation_image_url || item.explanation_image || '',
+        difficulty: item.difficulty || 'medium',
+        image_url: item.image_url || item.image || ''
       };
     });
+
+    console.log('[DEBUG csvJsonParser] Successfully mapped questions count:', parsed.length);
+    return parsed;
   } catch (e) {
+    console.error('[DEBUG csvJsonParser] Error parsing JSON:', e);
     throw new Error(`JSON Parse Error: ${e.message}`);
   }
 }
@@ -98,31 +110,91 @@ export function parseJSONQuestions(jsonString) {
 export function parseCSVQuestions(csvString) {
   const lines = csvString.split(/\r?\n/).filter(line => line.trim().length > 0);
   if (lines.length < 2) {
-    throw new Error('CSV file must contain a header row and at least one data row.');
+    throw new Error('CSV file must contain a header row and data rows.');
   }
 
-  // Header format: question,optionA,optionB,optionC,optionD,answer,explanation,tags
+  const headerCols = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"(.*)"$/, '$1'));
+
+  const isMultiLangFormat = headerCols.includes('question_en') || headerCols.includes('optiona_en') || headerCols.includes('question_text_en');
+
   const questions = [];
+
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map(c => c.trim().replace(/^"(.*)"$/, '$1'));
-    if (cols.length < 6) continue;
+    // Robust CSV split respecting quotes
+    const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+    const cols = row.map(c => c.trim().replace(/^"(.*)"$/, '$1').replace(/""/g, '"'));
 
-    const question_text = cols[0];
-    const options = [cols[1], cols[2], cols[3], cols[4]];
-    if (cols[5] && cols[5].length > 0 && !isNaN(cols[5])) {
-      // index
+    if (cols.length < 3) continue;
+
+    if (isMultiLangFormat) {
+      const getVal = (colName) => {
+        const idx = headerCols.indexOf(colName.toLowerCase());
+        return idx !== -1 && cols[idx] !== undefined ? cols[idx] : '';
+      };
+
+      const qEn = getVal('question_text_en') || getVal('question_en') || getVal('question');
+      const qHi = getVal('question_text_hi') || getVal('question_hi');
+
+      // Support Option A-F or Option 1-6
+      const optKeysEn = ['optiona_en', 'optionb_en', 'optionc_en', 'optiond_en', 'optione_en', 'optionf_en', 'option1_en', 'option2_en', 'option3_en', 'option4_en', 'option5_en', 'option6_en'];
+      const optKeysHi = ['optiona_hi', 'optionb_hi', 'optionc_hi', 'optiond_hi', 'optione_hi', 'optionf_hi', 'option1_hi', 'option2_hi', 'option3_hi', 'option4_hi', 'option5_hi', 'option6_hi'];
+
+      const optsEn = [];
+      const optsHi = [];
+
+      ['a', 'b', 'c', 'd', 'e', 'f', '1', '2', '3', '4', '5', '6'].forEach(suffix => {
+        const valEn = getVal(`option${suffix}_en`) || getVal(`option_${suffix}_en`) || getVal(`option${suffix}`);
+        if (valEn) optsEn.push(valEn);
+
+        const valHi = getVal(`option${suffix}_hi`) || getVal(`option_${suffix}_hi`);
+        if (valHi) optsHi.push(valHi);
+      });
+
+      const ansVal = getVal('answer') || getVal('correct_option_index') || '0';
+      const ansIdx = !isNaN(ansVal) ? parseInt(ansVal, 10) : 0;
+
+      const rawTags = getVal('tag_names') || getVal('tags');
+      const parsedTags = rawTags ? rawTags.split(';').join(',').split(',') : [];
+
+      questions.push({
+        category_name: getVal('category_name') || getVal('category'),
+        tag_names: parsedTags,
+        passage_text_en: getVal('passage_text_en') || getVal('passage_en') || getVal('passage'),
+        passage_text_hi: getVal('passage_text_hi') || getVal('passage_hi'),
+        passage_image_url: getVal('passage_image_url') || getVal('passage_image'),
+        question_text_en: qEn,
+        question_text_hi: qHi,
+        options_en: optsEn,
+        options_hi: optsHi,
+        options_images: [],
+        correct_option_index: ansIdx,
+        explanation_en: getVal('explanation_en') || getVal('explanation'),
+        explanation_hi: getVal('explanation_hi'),
+        explanation_image_url: getVal('explanation_image_url') || getVal('explanation_image'),
+        difficulty: getVal('difficulty') || 'medium',
+        image_url: getVal('image_url') || getVal('image')
+      });
+    } else {
+      // Simple format
+      const question_text = cols[0];
+      const options = [cols[1], cols[2], cols[3], cols[4]].filter(Boolean);
+      const answer = parseInt(cols[5], 10) || 0;
+      const explanation = cols[6] || '';
+
+      questions.push({
+        category_name: '',
+        tag_names: [],
+        question_text_en: question_text,
+        question_text_hi: '',
+        options_en: options,
+        options_hi: [],
+        options_images: [],
+        correct_option_index: answer,
+        explanation_en: explanation,
+        explanation_hi: '',
+        difficulty: 'medium'
+      });
     }
-    const answer = parseInt(cols[5], 10) || 0;
-    const explanation = cols[6] || '';
-    const tags = cols[7] ? cols[7].split(';') : [];
-
-    questions.push({
-      question_text,
-      options,
-      correct_answer_index: answer,
-      explanation,
-      tags
-    });
   }
 
   return questions;

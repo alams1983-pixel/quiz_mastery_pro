@@ -1,191 +1,180 @@
-import { api } from '../services/api.js';
-import { renderCategoryTree } from '../components/CategoryTree.js';
-import { downloadQuizBookletPDF } from '../services/pdfGenerator.js';
+import { apiRequest } from '../services/api.js';
+import { promptJoinInstituteModal } from '../components/BatchSelectionModal.js';
 
 export function renderUserDashboard(navigate, startQuizSession) {
   const container = document.createElement('div');
-  container.className = 'view-container';
+  container.className = 'view-container fade-in';
 
   container.innerHTML = `
-    <!-- Hero Banner -->
-    <div style="background: linear-gradient(135deg, var(--primary) 0%, #1e1b4b 100%); border-radius: var(--radius-lg); padding: 28px 32px; color: #ffffff; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; box-shadow: var(--shadow-md);">
-      <div>
-        <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.02em;">
-          Quiz Mastery<sub class="brand-subscript">Pro</sub> Catalogue
-        </h1>
-        <p style="opacity: 0.9; font-size: 0.98rem;">Select any quiz to practice, build active memory retention, or test weak areas.</p>
+    <!-- Coaching Institute Membership Banner -->
+    <div id="inst-membership-banner" style="display: none; background: var(--card-bg); border: 1px solid var(--primary-border); border-radius: var(--radius-md); padding: 16px 24px; margin-bottom: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; box-shadow: var(--shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 44px; height: 44px; border-radius: 12px; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+          <i class="ri-building-line"></i>
+        </div>
+        <div>
+          <span style="font-size: 0.78rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em;">Enrolled Coaching Institute & Batch</span>
+          <h3 id="user-inst-name" style="font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-top: 2px;">-</h3>
+        </div>
       </div>
-      <button class="btn" id="weakAreaBtn" style="background: #ffffff; color: var(--primary); box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
-        🎯 Practice My Weak Areas
+      <button id="btn-change-inst" class="btn btn-outline" style="font-size: 0.88rem; padding: 8px 16px; font-weight: 700;">
+        <i class="ri-key-2-line"></i> Join / Switch Batch & Institute
       </button>
     </div>
 
-    <!-- Main Grid Layout: Left Sidebar + Right Catalogue -->
-    <div class="dashboard-grid" style="display: grid; grid-template-columns: 260px 1fr; gap: 28px; align-items: start;">
-      
-      <!-- Left Sidebar: Category Tree & Filters -->
-      <div class="desktop-sidebar" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm);">
-        <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; color: var(--primary);">Categories</h3>
-        <div id="categoryTreeContainer"></div>
-      </div>
-
-      <!-- Right Catalogue: Search & Cards -->
+    <!-- Hero Home Banner -->
+    <div style="background: linear-gradient(135deg, var(--primary) 0%, #1e1b4b 100%); border-radius: var(--radius-lg); padding: 32px 36px; color: #ffffff; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; box-shadow: var(--shadow-md);">
       <div>
-        <div style="display: flex; gap: 16px; margin-bottom: 20px;">
-          <input type="text" id="searchInput" class="form-input" placeholder="🔍 Search quizzes by title, topic, or keyword..." />
-        </div>
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.02em;">
+          Welcome to Quiz Mastery<sub class="brand-subscript">Pro</sub> Student Portal
+        </h1>
+        <p style="opacity: 0.9; font-size: 1.05rem; max-width: 600px; line-height: 1.5;">
+          Access your live proctored CBT exams, take self-paced practice quizzes, or build custom self-assessment tests.
+        </p>
+      </div>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <button class="btn" id="btn-go-exams" style="background: #ffffff; color: var(--primary); font-weight: 800; padding: 12px 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
+          💻 Go to My Exams
+        </button>
+        <button class="btn" id="btn-go-quizzes" style="background: rgba(255,255,255,0.18); color: #ffffff; border: 1px solid rgba(255,255,255,0.35); font-weight: 800; padding: 12px 20px;">
+          📝 Go to Practice Quizzes
+        </button>
+      </div>
+    </div>
 
-        <div id="quizGrid" class="grid">
-          <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">
-            Loading quizzes...
-          </div>
+    <!-- Live & Scheduled CBT Exams Section -->
+    <div style="margin-bottom: 32px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+            <i class="ri-computer-line" style="color: var(--primary);"></i> Scheduled Online CBT Live Exams
+          </h2>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 2px;">
+            Live multi-section proctored mock examinations for your enrolled batch.
+          </p>
+        </div>
+        <button id="btn-view-all-exams" class="btn-text" style="font-weight: 700; color: var(--primary);">
+          View All Exams →
+        </button>
+      </div>
+      
+      <div id="ssc-exams-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); background: var(--card-bg); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          Loading live CBT exams...
         </div>
       </div>
+    </div>
 
+    <!-- Student Instructions & Guidelines -->
+    <div class="card" style="padding: 24px; border-left: 4px solid var(--accent);">
+      <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 12px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+        <i class="ri-information-line" style="color: var(--accent);"></i> Student Exam & Practice Guidelines
+      </h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; font-size: 0.9rem; color: var(--text-muted);">
+        <div style="background: var(--bg-color); padding: 14px; border-radius: 8px;">
+          <strong style="color: var(--text-main); display: block; margin-bottom: 4px;">💻 Proctored CBT Engine</strong>
+          Full-screen TCS iON exam engine with positive & negative marking, timer countdowns, and section navigation.
+        </div>
+        <div style="background: var(--bg-color); padding: 14px; border-radius: 8px;">
+          <strong style="color: var(--text-main); display: block; margin-bottom: 4px;">📝 Practice Quizzes</strong>
+          Self-paced practice sessions with immediate KaTeX solution explanations and question booklet PDF downloads.
+        </div>
+        <div style="background: var(--bg-color); padding: 14px; border-radius: 8px;">
+          <strong style="color: var(--text-main); display: block; margin-bottom: 4px;">🏛️ Batch Target Access</strong>
+          Enrolled students automatically receive mock exams assigned to their class or batch.
+        </div>
+      </div>
     </div>
   `;
 
-  let categories = [];
-  let selectedCategoryId = null;
-  let searchQuery = '';
-
-  const treeContainer = container.querySelector('#categoryTreeContainer');
-  const quizGrid = container.querySelector('#quizGrid');
-  const searchInput = container.querySelector('#searchInput');
-  const weakAreaBtn = container.querySelector('#weakAreaBtn');
-
-  async function loadData() {
-    try {
-      const catRes = await api.getCategories();
-      categories = catRes.categories || [];
-      renderTree();
-      await fetchQuizzes();
-    } catch (err) {
-      console.error('Error loading dashboard:', err);
-    }
-  }
-
-  function renderTree() {
-    treeContainer.innerHTML = '';
-    treeContainer.appendChild(renderCategoryTree(categories, selectedCategoryId, (catId) => {
-      selectedCategoryId = catId;
-      renderTree();
-      fetchQuizzes();
-    }));
-  }
-
-  async function fetchQuizzes() {
-    try {
-      quizGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">Loading quizzes...</div>';
-      const params = {};
-      if (selectedCategoryId) params.category_id = selectedCategoryId;
-      if (searchQuery) params.search = searchQuery;
-
-      const res = await api.getQuizzes(params);
-      const quizzes = res.quizzes || [];
-
-      if (quizzes.length === 0) {
-        quizGrid.innerHTML = `
-          <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">
-            No quizzes found matching your search criteria.
-          </div>
-        `;
-        return;
-      }
-
-      quizGrid.innerHTML = '';
-      quizzes.forEach(q => {
-        const card = document.createElement('div');
-        card.className = 'card';
-
-        const tagBadges = q.tag_names
-          ? q.tag_names.split(',').map(t => `<span class="badge-tag">🏷️ ${t.trim()}</span>`).join('')
-          : '';
-
-        const catIcon = q.category_icon || '📂';
-
-        card.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
-            <span style="font-size:0.78rem; font-weight:700; color:var(--primary); background:var(--primary-light); border:1px solid var(--primary-border); padding:3px 10px; border-radius:var(--radius-pill);">
-              ${catIcon} ${q.category_name || 'General'}
-            </span>
-            <span style="font-size:0.85rem; color:var(--text-muted); font-weight:600;">
-              ${q.question_count || 0} Questions
-            </span>
-          </div>
-
-          <h3 style="font-size:1.15rem; font-weight:700; margin-bottom:6px;">${q.title}</h3>
-          <p style="font-size:0.88rem; color:var(--text-muted); flex:1; margin-bottom:12px; line-height:1.4;">
-            ${q.description || 'No description provided.'}
-          </p>
-
-          <div style="margin-bottom:16px;">${tagBadges}</div>
-
-          <div style="display:flex; gap:10px; margin-top:auto;">
-            <button class="btn start-quiz-btn" style="flex:1;">
-              Start Session →
-            </button>
-            <button class="btn btn-secondary download-pdf-btn" title="Download Question Booklet PDF" style="padding:10px 14px;">
-              📥 PDF
-            </button>
-          </div>
-        `;
-
-        card.querySelector('.start-quiz-btn').addEventListener('click', () => {
-          startQuizSession(q.id);
-        });
-
-        card.querySelector('.download-pdf-btn').addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const pdfBtn = e.currentTarget;
-          const originalHTML = pdfBtn.innerHTML;
-          try {
-            pdfBtn.innerHTML = '⏳ PDF...';
-            pdfBtn.disabled = true;
-            const qRes = await api.getQuestions(q.id);
-            const questions = qRes.questions || [];
-            await downloadQuizBookletPDF({ quiz: q, questions });
-          } catch (err) {
-            console.error('PDF Generation Error:', err);
-            alert('Could not download PDF booklet. Please try again.');
-          } finally {
-            pdfBtn.innerHTML = originalHTML;
-            pdfBtn.disabled = false;
-          }
-        });
-
-        quizGrid.appendChild(card);
-      });
-    } catch (err) {
-      quizGrid.innerHTML = `<div style="grid-column: 1/-1; color: var(--danger); text-align:center;">Failed to load quizzes: ${err.message}</div>`;
-    }
-  }
-
-  let searchTimeout;
-  searchInput.addEventListener('input', (e) => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-      searchQuery = e.target.value.trim();
-      fetchQuizzes();
-    }, 300);
-  });
-
-  weakAreaBtn.addEventListener('click', async () => {
-    try {
-      const res = await api.getWeakAreas();
-      const questions = res.questions || [];
-      if (questions.length === 0) {
-        alert('Great job! You currently have no questions in your weak area list.');
-        return;
-      }
-      startQuizSession(null, { isWeakArea: true, questions });
-    } catch (err) {
-      alert('Please log in or register to practice weak areas.');
-      navigate('login');
-    }
-  });
-
-  loadData();
+  // Attach handlers
+  setTimeout(() => {
+    setupUserDashboard(container, navigate);
+  }, 0);
 
   return container;
+}
+
+async function setupUserDashboard(container, navigate) {
+  const banner = container.querySelector('#inst-membership-banner');
+  const userInstName = container.querySelector('#user-inst-name');
+  const btnChangeInst = container.querySelector('#btn-change-inst');
+  const sscGrid = container.querySelector('#ssc-exams-grid');
+  const btnGoExams = container.querySelector('#btn-go-exams');
+  const btnGoQuizzes = container.querySelector('#btn-go-quizzes');
+  const btnViewAllExams = container.querySelector('#btn-view-all-exams');
+
+  btnGoExams.addEventListener('click', () => navigate('student-exams'));
+  btnGoQuizzes.addEventListener('click', () => navigate('student-quizzes'));
+  btnViewAllExams.addEventListener('click', () => navigate('student-exams'));
+
+  const promptJoinInstitute = () => {
+    promptJoinInstituteModal(() => {
+      loadUserProfile();
+      loadSSCExams();
+    });
+  };
+
+  if (btnChangeInst) btnChangeInst.addEventListener('click', promptJoinInstitute);
+
+  async function loadUserProfile() {
+    try {
+      const res = await apiRequest('/auth/me');
+      const u = res.user;
+      if (u.institute_name) {
+        banner.style.display = 'flex';
+        userInstName.textContent = `${u.institute_name} (${u.institute_code}) • Batch: ${u.batch_name || 'General Batch'}`;
+      }
+    } catch (e) {
+      // Guest
+    }
+  }
+
+  async function loadSSCExams() {
+    try {
+      const res = await apiRequest('/exams');
+      const exams = res.exams || [];
+      const liveExams = exams.filter(e => e.is_published);
+
+      if (liveExams.length === 0) {
+        sscGrid.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; padding: 36px; color: var(--text-muted); background: var(--card-bg); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            No live scheduled CBT exams currently active. Explore practice quizzes!
+          </div>
+        `;
+        return;
+      }
+
+      sscGrid.innerHTML = liveExams.slice(0, 3).map(e => `
+        <div class="card" style="border: 2px solid var(--primary-border); padding: 20px; display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <span class="badge-tag">${e.exam_type}</span>
+            <span style="font-size: 0.78rem; font-weight: 700; color: var(--primary); text-transform: capitalize;">${e.mode} Mode</span>
+          </div>
+          <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 6px; color: var(--text-main);">${e.title}</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px; flex: 1;">
+            ${e.description || 'Official Online CBT Mock Examination.'}
+          </p>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px; background: var(--bg-color); padding: 8px 12px; border-radius: 6px; display: flex; justify-content: space-between;">
+            <span>⏱ ${e.total_duration_mins} Mins</span>
+            <span>Marks: +${parseFloat(e.positive_marks).toFixed(1)} / -${parseFloat(e.negative_marks).toFixed(1)}</span>
+          </div>
+          <button class="btn btn-primary btn-enter-lobby" data-id="${e.id}" style="width: 100%; font-weight: 700;">
+            Enter Exam Lobby →
+          </button>
+        </div>
+      `).join('');
+
+      sscGrid.querySelectorAll('.btn-enter-lobby').forEach(btn => {
+        btn.addEventListener('click', () => {
+          navigate('exam-lobby', { examId: btn.dataset.id });
+        });
+      });
+    } catch (e) {
+      console.warn('Could not load SSC exams:', e);
+    }
+  }
+
+  loadUserProfile();
+  loadSSCExams();
 }

@@ -221,3 +221,6 @@ export const api = {
   getStats: () => request('/analytics/stats'),
   getWeakAreas: () => request('/analytics/weak-areas')
 };
+
+export { request as apiRequest };
+

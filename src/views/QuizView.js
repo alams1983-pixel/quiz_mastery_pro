@@ -1,5 +1,6 @@
 import { api, getUser } from '../services/api.js';
 import { renderMath } from '../services/katexRenderer.js';
+import { renderRichContent } from '../services/richContent.js';
 import { generateQuizPDFReport } from '../services/pdfGenerator.js';
 
 export function renderQuizView(quizId, customData, navigate) {
@@ -67,9 +68,8 @@ export function renderQuizView(quizId, customData, navigate) {
             <div class="fb-explain" id="fbExplain"></div>
           </div>
 
-          <!-- MANUAL NEXT QUESTION NAVIGATION BUTTON -->
           <div id="nextBtnContainer" style="display:none; margin-top:20px; text-align:right;">
-            <button class="btn" id="nextQuestionBtn">Next Question →</button>
+            <button class="btn" id="nextQuestionBtn" title="Next Question" aria-label="Next Question"><span class="btn-text-desktop">Next Question </span><i class="ri-arrow-right-line"></i></button>
           </div>
         </div>
       </div>
@@ -137,9 +137,15 @@ export function renderQuizView(quizId, customData, navigate) {
         </div>
 
         <div style="display:flex; justify-content:center; gap:16px; flex-wrap:wrap;">
-          <button class="btn" id="downloadPdfBtn" style="background:#047857;">📄 Download PDF Report</button>
-          <button class="btn btn-secondary" id="restartQuizBtn">🔄 Restart Session</button>
-          <button class="btn btn-secondary" id="backCatalogBtn">← Back to Catalogue</button>
+          <button class="btn" id="downloadPdfBtn" style="background:#047857;" title="Download PDF Report" aria-label="Download PDF Report">
+            <i class="ri-file-pdf-2-line"></i> <span class="btn-text-desktop">Download PDF Report</span>
+          </button>
+          <button class="btn btn-secondary" id="restartQuizBtn" title="Restart Session" aria-label="Restart Session">
+            <i class="ri-refresh-line"></i> <span class="btn-text-desktop">Restart Session</span>
+          </button>
+          <button class="btn btn-secondary" id="backCatalogBtn" title="Back to Catalogue" aria-label="Back to Catalogue">
+            <i class="ri-arrow-left-line"></i> <span class="btn-text-desktop">Back to Catalogue</span>
+          </button>
         </div>
       </div>
     </div>
@@ -281,7 +287,7 @@ export function renderQuizView(quizId, customData, navigate) {
     isAnswered = false;
     itemStartTime = Date.now();
 
-    qText.textContent = currentQuestion.question_text;
+    qText.innerHTML = renderRichContent(currentQuestion.question_text);
 
     if (currentQuestion.image_path) {
       qImg.src = `/api/images/${currentQuestion.image_path}`;
@@ -298,14 +304,14 @@ export function renderQuizView(quizId, customData, navigate) {
     currentShuffledOptions.forEach((optObj, displayIdx) => {
       const btn = document.createElement('button');
       btn.className = 'option-btn';
-      btn.innerHTML = `<span class="opt-label">${labels[displayIdx]}</span><span class="opt-text">${optObj.text}</span>`;
+      btn.innerHTML = `<span class="opt-label">${labels[displayIdx]}</span><span class="opt-text">${renderRichContent(optObj.text)}</span>`;
       btn.addEventListener('click', () => handleChoice(displayIdx));
       optionsContainer.appendChild(btn);
     });
 
     feedback.className = 'feedback';
     fbCorrectAnswer.textContent = '';
-    fbExplain.textContent = '';
+    fbExplain.innerHTML = '';
     nextBtnContainer.style.display = 'none';
 
     renderMath(container.querySelector('#questionCard'));
@@ -348,7 +354,7 @@ export function renderQuizView(quizId, customData, navigate) {
     feedback.className = `feedback visible ${isCorrect ? 'correct' : 'wrong'}`;
     fbHead.textContent = isCorrect ? '✅ Correct!' : '❌ Incorrect';
     fbCorrectAnswer.textContent = isCorrect ? '' : `Correct Answer: ${correctOptText}`;
-    fbExplain.textContent = currentQuestion.explanation || '';
+    fbExplain.innerHTML = renderRichContent(currentQuestion.explanation || '');
     renderMath(feedback);
 
     updateProgress();

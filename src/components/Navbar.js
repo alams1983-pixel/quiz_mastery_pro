@@ -1,168 +1,275 @@
 import { getUser, logout } from '../services/api.js';
 
-export function renderNavbar(currentView, navigate) {
+export function renderNavbar(currentView, navigate, extraParams = {}) {
   const user = getUser();
-  const navContainer = document.createElement('div');
+  const shell = document.createElement('div');
+  shell.className = 'dashboard-app-layout';
 
-  const roleBadgeHtml = user ? `<span class="role-badge ${user.role}">${user.role.replace('_', ' ')}</span>` : '';
-
-  navContainer.innerHTML = `
-    <!-- Top Navbar -->
-    <nav class="navbar">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Toggle Side Drawer">☰</button>
-        <div class="nav-brand" id="navHome">
-          <div class="brand-logo-box">Q</div>
-          <span>Quiz Mastery<sub class="brand-subscript">Pro</sub></span>
-        </div>
-      </div>
-
-      <!-- Desktop Links -->
-      <div class="nav-links nav-desktop-links">
-        <button class="nav-btn ${currentView === 'dashboard' ? 'active' : ''}" id="navCatalog">Quiz Catalogue</button>
-        
-        ${user ? `
-          <button class="nav-btn ${currentView === 'analytics' ? 'active' : ''}" id="navAnalytics">My Analytics</button>
-          ${(user.role === 'admin' || user.role === 'super_admin') ? `
-            <button class="nav-btn ${currentView === 'admin' ? 'active' : ''}" id="navAdmin">Admin Panel</button>
-          ` : ''}
-          <div style="display:flex; align-items:center; gap:8px; margin-left: 10px;">
-            <span style="font-weight:600; font-size:0.88rem;">${user.full_name}</span>
-            ${roleBadgeHtml}
-            <button class="nav-btn btn-sm btn-secondary" id="navLogout">Logout</button>
-          </div>
-        ` : `
-          <button class="nav-btn ${currentView === 'login' ? 'active' : ''}" id="navLogin">Sign In / Register</button>
-        `}
-        
-        <button class="nav-btn" id="themeToggle" title="Toggle Dark/Light Mode">🌙</button>
-      </div>
-    </nav>
-
-    <!-- Mobile/Tablet Side Navigation Drawer -->
-    <div class="nav-drawer-overlay" id="drawerOverlay"></div>
-    <aside class="nav-drawer" id="navDrawer">
-      <div class="nav-drawer-header">
-        <div class="nav-brand" id="drawerHome">
-          <div class="brand-logo-box">Q</div>
-          <span>Quiz Mastery<sub class="brand-subscript">Pro</sub></span>
-        </div>
-        <button class="nav-drawer-close" id="drawerClose">&times;</button>
-      </div>
-
-      <div class="nav-drawer-body">
-        ${user ? `
-          <div style="background:var(--primary-light); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--primary-border); margin-bottom:10px;">
-            <div style="font-weight:700; font-size:0.95rem;">${user.full_name}</div>
-            <div style="font-size:0.8rem; color:var(--text-muted);">${user.email}</div>
-            <div style="margin-top:6px;">${roleBadgeHtml}</div>
-          </div>
-        ` : ''}
-
-        <button class="nav-btn ${currentView === 'dashboard' ? 'active' : ''}" id="drawerCatalog">📚 Quiz Catalogue</button>
-
-        ${user ? `
-          <button class="nav-btn ${currentView === 'analytics' ? 'active' : ''}" id="drawerAnalytics">📊 My Analytics</button>
-          ${(user.role === 'admin' || user.role === 'super_admin') ? `
-            <button class="nav-btn ${currentView === 'admin' ? 'active' : ''}" id="drawerAdmin">⚙️ Admin Panel</button>
-          ` : ''}
-          <button class="nav-btn btn-danger" id="drawerLogout" style="margin-top:auto;">Logout</button>
-        ` : `
-          <button class="nav-btn ${currentView === 'login' ? 'active' : ''}" id="drawerLogin">🔐 Sign In / Register</button>
-        `}
-
-        <div style="margin-top:16px; pt-16px; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:0.85rem; font-weight:600;">Theme</span>
-          <button class="nav-btn" id="drawerThemeToggle">🌙 Dark/Light</button>
-        </div>
-      </div>
-    </aside>
-  `;
-
-  // Drawer Toggle Handlers
-  const hamburgerBtn = navContainer.querySelector('#hamburgerBtn');
-  const drawer = navContainer.querySelector('#navDrawer');
-  const overlay = navContainer.querySelector('#drawerOverlay');
-  const drawerClose = navContainer.querySelector('#drawerClose');
-
-  function openDrawer() {
-    drawer.classList.add('open');
-    overlay.classList.add('active');
-  }
-
-  function closeDrawer() {
-    drawer.classList.remove('open');
-    overlay.classList.remove('active');
-  }
-
-  if (hamburgerBtn) hamburgerBtn.addEventListener('click', openDrawer);
-  if (drawerClose) drawerClose.addEventListener('click', closeDrawer);
-  if (overlay) overlay.addEventListener('click', closeDrawer);
-
-  // Router Helpers
-  function handleNav(view) {
-    closeDrawer();
-    navigate(view);
-  }
-
-  // Desktop Events
-  const homeBtn = navContainer.querySelector('#navHome');
-  if (homeBtn) homeBtn.addEventListener('click', () => handleNav('dashboard'));
-
-  const catBtn = navContainer.querySelector('#navCatalog');
-  if (catBtn) catBtn.addEventListener('click', () => handleNav('dashboard'));
-
-  const anaBtn = navContainer.querySelector('#navAnalytics');
-  if (anaBtn) anaBtn.addEventListener('click', () => handleNav('analytics'));
-
-  const admBtn = navContainer.querySelector('#navAdmin');
-  if (admBtn) admBtn.addEventListener('click', () => handleNav('admin'));
-
-  const logBtn = navContainer.querySelector('#navLogin');
-  if (logBtn) logBtn.addEventListener('click', () => handleNav('login'));
-
-  const logoutBtn = navContainer.querySelector('#navLogout');
-  if (logoutBtn) logoutBtn.addEventListener('click', () => {
-    logout();
-    handleNav('dashboard');
-  });
-
-  // Drawer Events
-  const drawerHome = navContainer.querySelector('#drawerHome');
-  if (drawerHome) drawerHome.addEventListener('click', () => handleNav('dashboard'));
-
-  const drawerCatalog = navContainer.querySelector('#drawerCatalog');
-  if (drawerCatalog) drawerCatalog.addEventListener('click', () => handleNav('dashboard'));
-
-  const drawerAnalytics = navContainer.querySelector('#drawerAnalytics');
-  if (drawerAnalytics) drawerAnalytics.addEventListener('click', () => handleNav('analytics'));
-
-  const drawerAdmin = navContainer.querySelector('#drawerAdmin');
-  if (drawerAdmin) drawerAdmin.addEventListener('click', () => handleNav('admin'));
-
-  const drawerLogin = navContainer.querySelector('#drawerLogin');
-  if (drawerLogin) drawerLogin.addEventListener('click', () => handleNav('login'));
-
-  const drawerLogout = navContainer.querySelector('#drawerLogout');
-  if (drawerLogout) drawerLogout.addEventListener('click', () => {
-    logout();
-    handleNav('dashboard');
-  });
-
-  // Theme Toggles
-  const handleThemeToggle = (btn) => {
-    const currentTheme = document.body.getAttribute('data-theme');
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    document.body.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-    btn.textContent = newTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+  const roleTitleMap = {
+    super_admin: '👑 Super Admin Portal',
+    institute_admin: '🏫 Coaching Institute Portal',
+    admin: '⚙️ Quiz Administrator',
+    user: '🎓 Student Practice Hub'
   };
 
-  const themeBtn = navContainer.querySelector('#themeToggle');
-  if (themeBtn) themeBtn.addEventListener('click', () => handleThemeToggle(themeBtn));
+  const currentRoleTitle = user ? (roleTitleMap[user.role] || '🎓 Student') : 'Public Portal';
 
-  const drawerThemeToggle = navContainer.querySelector('#drawerThemeToggle');
-  if (drawerThemeToggle) drawerThemeToggle.addEventListener('click', () => handleThemeToggle(drawerThemeToggle));
+  // Get Breadcrumb text based on current view
+  const viewTitleMap = {
+    'dashboard': 'Dashboard & Quiz Catalogue',
+    'analytics': 'My Performance Analytics',
+    'institute-admin': 'Institute Portal',
+    'admin': 'Practice Quiz Manager',
+    'user-management': 'User Role Control & Access Management',
+    'super-admin': 'Platform Super Admin',
+    'taxonomy': 'Master Taxonomy & Tags',
+    'exam-lobby': 'SSC CBT Exam Lobby',
+    'exam-analysis': 'Detailed Exam Scorecard & Analysis',
+    'login': 'Sign In / Account Registration'
+  };
 
-  return navContainer;
+  const currentBreadcrumb = viewTitleMap[currentView] || 'Dashboard';
+
+  shell.innerHTML = `
+    <!-- Persistent Left Dark Sidebar -->
+    <aside class="app-sidebar" id="appSidebar">
+      <!-- Sidebar Brand Header -->
+      <div class="sidebar-brand" id="brandClick">
+        <div class="brand-logo-icon">Q</div>
+        <div class="brand-text">
+          <span class="brand-title">Quiz Mastery</span>
+          <span class="brand-sub">PRO SAAS</span>
+        </div>
+      </div>
+
+      <!-- Navigation Menu Items -->
+      <div class="sidebar-nav-container">
+
+        <!-- Section 1: Main Portal Navigation -->
+        <div class="nav-section-label">STUDENT HUB</div>
+
+        <button class="sidebar-nav-item ${currentView === 'dashboard' ? 'active' : ''}" id="sideCatalog">
+          <i class="ri-home-4-line nav-icon"></i>
+          <span class="nav-label">Home</span>
+        </button>
+
+        <button class="sidebar-nav-item ${currentView === 'student-exams' ? 'active' : ''}" id="sideStudentExams">
+          <i class="ri-computer-line nav-icon"></i>
+          <span class="nav-label">My Exams</span>
+          <span class="nav-badge orange">CBT</span>
+        </button>
+
+        <button class="sidebar-nav-item ${currentView === 'student-quizzes' ? 'active' : ''}" id="sideStudentQuizzes">
+          <i class="ri-file-list-3-line nav-icon"></i>
+          <span class="nav-label">My Quizzes</span>
+        </button>
+
+        ${user ? `
+          <button class="sidebar-nav-item ${currentView === 'analytics' ? 'active' : ''}" id="sideAnalytics">
+            <i class="${user.role === 'super_admin' ? 'ri-pie-chart-2-line' : (user.role === 'institute_admin' || user.role === 'admin' ? 'ri-user-star-line' : 'ri-bar-chart-box-line')} nav-icon"></i>
+            <span class="nav-label">
+              ${user.role === 'super_admin' ? 'Platform Analytics' : (user.role === 'institute_admin' || user.role === 'admin' ? 'Student Analytics' : 'My Analytics')}
+            </span>
+            <span class="nav-badge green">Live</span>
+          </button>
+        ` : ''}
+
+        <!-- Section 2: Teacher & Coaching Admin (Role Filtered) -->
+        ${user && (user.role === 'institute_admin' || user.role === 'admin' || user.role === 'super_admin') ? `
+          <div class="nav-section-label" style="margin-top: 18px;">TEACHER & COACHING</div>
+
+          <button class="sidebar-nav-item ${currentView === 'institute-admin' ? 'active' : ''}" id="sideInstituteAdmin">
+            <i class="ri-building-4-line nav-icon"></i>
+            <span class="nav-label">CBT Exams</span>
+            <span class="nav-badge orange">Engine</span>
+          </button>
+
+          <button class="sidebar-nav-item ${currentView === 'exam-questions' || currentView === 'question-editor' ? 'active' : ''}" id="sideExamQuestions">
+            <i class="ri-database-2-line nav-icon"></i>
+            <span class="nav-label">Question Bank</span>
+            <span class="nav-badge blue">Bank</span>
+          </button>
+
+          <button class="sidebar-nav-item ${currentView === 'admin' ? 'active' : ''}" id="sideQuizzes">
+            <i class="ri-file-list-3-line nav-icon"></i>
+            <span class="nav-label">Practice Quizzes</span>
+          </button>
+
+          <button class="sidebar-nav-item ${currentView === 'taxonomy' ? 'active' : ''}" id="sideTaxonomy">
+            <i class="ri-price-tag-3-line nav-icon"></i>
+            <span class="nav-label">Taxonomy & Tags</span>
+          </button>
+        ` : ''}
+
+        <!-- Section 3: Super Administrator -->
+        ${user && user.role === 'super_admin' ? `
+          <div class="nav-section-label" style="margin-top: 18px;">SUPER ADMIN</div>
+
+          <button class="sidebar-nav-item ${currentView === 'user-management' ? 'active' : ''}" id="sideUserManagement">
+            <i class="ri-user-settings-line nav-icon"></i>
+            <span class="nav-label">User Management</span>
+            <span class="nav-badge purple">Control</span>
+          </button>
+
+          <button class="sidebar-nav-item ${currentView === 'super-admin' ? 'active' : ''}" id="sideSuperAdmin">
+            <i class="ri-shield-user-line nav-icon"></i>
+            <span class="nav-label">Super Admin</span>
+            <span class="nav-badge purple">Owner</span>
+          </button>
+        ` : ''}
+
+      </div>
+
+      <!-- Bottom User Profile & Sign Out Bar -->
+      <div class="sidebar-footer">
+        ${user ? `
+          <div class="user-profile-widget">
+            <div class="user-avatar">${user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}</div>
+            <div class="user-info">
+              <span class="user-name">${user.full_name}</span>
+              <span class="user-role-tag ${user.role}">${user.role.replace('_', ' ')}</span>
+            </div>
+          </div>
+
+          <button class="sidebar-nav-item btn-signout" id="sideLogout">
+            <i class="ri-logout-box-r-line nav-icon"></i>
+            <span class="nav-label">SIGN OUT</span>
+          </button>
+        ` : `
+          <button class="sidebar-nav-item btn-signin" id="sideLogin">
+            <i class="ri-lock-line nav-icon"></i>
+            <span class="nav-label">SIGN IN / REGISTER</span>
+          </button>
+        `}
+      </div>
+    </aside>
+
+    <!-- Sidebar Overlay for Mobile Responsiveness -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Content App Wrapper (Top Header + Page Content) -->
+    <div class="app-main-wrapper">
+      
+      <!-- Top App Header -->
+      <header class="app-top-header">
+        <div class="header-left">
+          <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Toggle Navigation Sidebar">
+            <i class="ri-menu-fold-line"></i>
+          </button>
+
+          <div class="breadcrumb-container">
+            <i class="ri-home-4-line breadcrumb-icon"></i>
+            <span class="breadcrumb-root">Quiz Mastery Pro</span>
+          </div>
+        </div>
+
+        <div class="header-center">
+          <div class="header-search-bar">
+            <i class="ri-search-line search-icon"></i>
+            <input type="text" id="globalHeaderSearch" placeholder="Search quizzes, exams, topics..." />
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="header-role-indicator">
+            <span class="role-pill-badge ${user ? user.role : 'guest'}">${currentRoleTitle}</span>
+          </div>
+
+          <button class="header-icon-btn" id="themeToggleBtn" title="Toggle Theme (Dark / Light)">
+            <i class="ri-moon-line"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- View Container Root -->
+      <main class="app-page-content" id="appMainContent"></main>
+    </div>
+  `;
+
+  // Attach Event Handlers
+  const sidebar = shell.querySelector('#appSidebar');
+  const overlay = shell.querySelector('#sidebarOverlay');
+  const toggleBtn = shell.querySelector('#sidebarToggleBtn');
+
+  toggleBtn.addEventListener('click', () => {
+    const isMobile = window.innerWidth <= 900;
+    if (isMobile) {
+      sidebar.classList.toggle('mobile-open');
+      overlay.classList.toggle('active');
+    } else {
+      sidebar.classList.toggle('collapsed');
+      sidebar.classList.remove('mobile-open');
+      overlay.classList.remove('active');
+    }
+  });
+
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('active');
+  });
+
+  function navTo(v) {
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('active');
+    navigate(v);
+  }
+
+  const brand = shell.querySelector('#brandClick');
+  if (brand) brand.addEventListener('click', () => navTo('dashboard'));
+
+  const sideCat = shell.querySelector('#sideCatalog');
+  if (sideCat) sideCat.addEventListener('click', () => navTo('dashboard'));
+
+  const sideStudExams = shell.querySelector('#sideStudentExams');
+  if (sideStudExams) sideStudExams.addEventListener('click', () => navTo('student-exams'));
+
+  const sideStudQuizzes = shell.querySelector('#sideStudentQuizzes');
+  if (sideStudQuizzes) sideStudQuizzes.addEventListener('click', () => navTo('student-quizzes'));
+
+  const sideAna = shell.querySelector('#sideAnalytics');
+  if (sideAna) sideAna.addEventListener('click', () => navTo('analytics'));
+
+  const sideInst = shell.querySelector('#sideInstituteAdmin');
+  if (sideInst) sideInst.addEventListener('click', () => navTo('institute-admin'));
+
+  const sideExamQ = shell.querySelector('#sideExamQuestions');
+  if (sideExamQ) sideExamQ.addEventListener('click', () => navTo('exam-questions'));
+
+  const sideQuizzes = shell.querySelector('#sideQuizzes');
+  if (sideQuizzes) sideQuizzes.addEventListener('click', () => navTo('admin'));
+
+  const sideTaxonomy = shell.querySelector('#sideTaxonomy');
+  if (sideTaxonomy) sideTaxonomy.addEventListener('click', () => navTo('taxonomy'));
+
+  const sideUserMgmt = shell.querySelector('#sideUserManagement');
+  if (sideUserMgmt) sideUserMgmt.addEventListener('click', () => navTo('user-management'));
+
+  const sideSuper = shell.querySelector('#sideSuperAdmin');
+  if (sideSuper) sideSuper.addEventListener('click', () => navTo('super-admin'));
+
+  const sideLogin = shell.querySelector('#sideLogin');
+  if (sideLogin) sideLogin.addEventListener('click', () => navTo('login'));
+
+  const sideLogout = shell.querySelector('#sideLogout');
+  if (sideLogout) sideLogout.addEventListener('click', () => {
+    logout();
+    navTo('dashboard');
+  });
+
+  // Theme Handler
+  const themeBtn = shell.querySelector('#themeToggleBtn');
+  if (themeBtn) {
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    themeBtn.innerHTML = isDark ? '<i class="ri-sun-line"></i>' : '<i class="ri-moon-line"></i>';
+
+    themeBtn.addEventListener('click', () => {
+      const currentTheme = document.body.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.body.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      themeBtn.innerHTML = newTheme === 'dark' ? '<i class="ri-sun-line"></i>' : '<i class="ri-moon-line"></i>';
+    });
+  }
+
+  return shell;
 }

@@ -1,6 +1,6 @@
 import express from 'express';
 import pool from '../db.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireInstituteAdmin, requireSuperAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -55,7 +55,7 @@ router.post('/quiz-attempt', requireAuth, async (req, res) => {
   }
 });
 
-// 3. Get User Attempt History
+// 3. Get Practice Quiz Attempt History
 router.get('/history', requireAuth, async (req, res) => {
   try {
     const [attempts] = await pool.query(`
@@ -73,7 +73,7 @@ router.get('/history', requireAuth, async (req, res) => {
   }
 });
 
-// 4. Get User Analytics Dashboard Stats
+// 4. Get Practice Quiz Stats
 router.get('/stats', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -82,7 +82,6 @@ router.get('/stats', requireAuth, async (req, res) => {
     const [avgAccuracy] = await pool.query('SELECT AVG(accuracy_pct) as avg_acc FROM quiz_attempts WHERE user_id = ?', [userId]);
     const [totalTime] = await pool.query('SELECT SUM(time_taken_sec) as total_sec FROM quiz_attempts WHERE user_id = ?', [userId]);
 
-    // Question activity breakdown
     const [questionStats] = await pool.query(`
       SELECT
         COUNT(*) as total_logs,
@@ -133,6 +132,149 @@ router.get('/weak-areas', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Weak Areas Error:', err);
     res.status(500).json({ error: 'Error generating weak area practice quiz.' });
+  }
+});
+
+// ==========================================
+// ROLE-SPECIFIC EXAM ANALYTICS ENDPOINTS
+// ==========================================
+
+// 6. Student CBT Exam Analytics (Exclusively for Students)
+router.get('/student-exam-stats', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const [attempts] = await pool.query(`
+      SELECT ea.*, e.title as exam_title, e.exam_type, e.mode, e.total_duration_mins,
+             i.name as institute_name
+      FROM exam_attempts ea
+      JOIN exams e ON ea.exam_id = e.id
+      LEFT JOIN institutes i ON ea.institute_id = i.id
+      WHERE ea.user_id = ? AND ea.status IN ('completed', 'auto_submitted')
+      ORDER BY ea.submit_time DESC
+    `, [userId]);
+
+    const [aggregate] = await pool.query(`
+      SELECT COUNT(*) as total_exams,
+             AVG(accuracy_pct) as avg_accuracy,
+             AVG(total_score) as avg_score,
+             AVG(percentile) as avg_percentile,
+             SUM(TIMESTAMPDIFF(SECOND, start_time, submit_time)) as total_duration_sec
+      FROM exam_attempts
+      WHERE user_id = ? AND status IN ('completed', 'auto_submitted')
+    `, [userId]);
+
+    res.json({
+      totalExams: aggregate[0].total_exams || 0,
+      avgAccuracy: Math.round(aggregate[0].avg_accuracy || 0),
+      avgScore: parseFloat(aggregate[0].avg_score || 0).toFixed(2),
+      avgPercentile: Math.round(aggregate[0].avg_percentile || 0),
+      totalDurationMins: Math.round((aggregate[0].total_duration_sec || 0) / 60),
+      attempts
+    });
+  } catch (err) {
+    console.error('Student Exam Stats Error:', err);
+    res.status(500).json({ error: 'Error fetching student CBT exam analytics.' });
+  }
+});
+
+// 7. Institute Student Analytics (For Coaching / Teacher Role)
+router.get('/institute-student-analytics', requireInstituteAdmin, async (req, res) => {
+  try {
+    const instId = req.user.role === 'super_admin' ? (req.query.institute_id || req.user.institute_id) : req.user.institute_id;
+    if (!instId) return res.status(400).json({ error: 'Institute ID is required.' });
+
+    // Aggregate stats for students belonging to this institute (WHERE u.role = 'user')
+    const [overall] = await pool.query(`
+      SELECT COUNT(DISTINCT u.id) as total_students,
+             COUNT(ea.id) as total_exam_attempts,
+             AVG(ea.accuracy_pct) as class_avg_accuracy,
+             AVG(ea.total_score) as class_avg_score
+      FROM users u
+      LEFT JOIN exam_attempts ea ON ea.user_id = u.id AND ea.status IN ('completed', 'auto_submitted')
+      WHERE u.institute_id = ? AND u.role = 'user'
+    `, [instId]);
+
+    // Student performance roster
+    const [students] = await pool.query(`
+      SELECT u.id, u.full_name, u.email, u.phone_number, u.created_at,
+             COUNT(DISTINCT ea.id) as exams_completed,
+             AVG(ea.accuracy_pct) as avg_accuracy,
+             MAX(ea.total_score) as max_score,
+             MAX(ea.percentile) as max_percentile,
+             MAX(ea.submit_time) as last_active
+      FROM users u
+      LEFT JOIN exam_attempts ea ON ea.user_id = u.id AND ea.status IN ('completed', 'auto_submitted')
+      WHERE u.institute_id = ? AND u.role = 'user'
+      GROUP BY u.id
+      ORDER BY exams_completed DESC, avg_accuracy DESC
+    `, [instId]);
+
+    // Exam-by-exam summary for this institute
+    const [examSummary] = await pool.query(`
+      SELECT e.id, e.title, e.exam_type,
+             COUNT(DISTINCT ea.id) as attempts_count,
+             AVG(ea.total_score) as avg_score,
+             AVG(ea.accuracy_pct) as avg_accuracy
+      FROM exams e
+      LEFT JOIN exam_attempts ea ON ea.exam_id = e.id AND ea.status IN ('completed', 'auto_submitted')
+      JOIN users u ON ea.user_id = u.id AND u.role = 'user'
+      WHERE e.institute_id = ?
+      GROUP BY e.id
+      ORDER BY e.created_at DESC
+    `, [instId]);
+
+    res.json({
+      totalStudents: overall[0].total_students || 0,
+      totalExamAttempts: overall[0].total_exam_attempts || 0,
+      classAvgAccuracy: Math.round(overall[0].class_avg_accuracy || 0),
+      classAvgScore: parseFloat(overall[0].class_avg_score || 0).toFixed(2),
+      students,
+      examSummary
+    });
+  } catch (err) {
+    console.error('Institute Analytics Error:', err);
+    res.status(500).json({ error: 'Error fetching institute student analytics.' });
+  }
+});
+
+// 8. Platform Super Admin Analytics (For Platform Super Admin)
+router.get('/platform-analytics', requireSuperAdmin, async (req, res) => {
+  try {
+    const [totals] = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM users) as total_users,
+        (SELECT COUNT(*) FROM users WHERE role = 'user') as total_students,
+        (SELECT COUNT(*) FROM users WHERE role = 'institute_admin') as total_teachers,
+        (SELECT COUNT(*) FROM institutes) as total_institutes,
+        (SELECT COUNT(*) FROM exams) as total_exams,
+        (SELECT COUNT(*) FROM quizzes) as total_quizzes,
+        (SELECT COUNT(*) FROM exam_attempts WHERE status IN ('completed', 'auto_submitted')) as total_exam_attempts,
+        (SELECT COUNT(*) FROM quiz_attempts) as total_quiz_attempts
+    `);
+
+    // Institute Comparative Matrix
+    const [institutes] = await pool.query(`
+      SELECT i.id, i.name, i.code, i.status, i.created_at,
+             COUNT(DISTINCT u.id) as student_count,
+             COUNT(DISTINCT e.id) as exam_count,
+             COUNT(DISTINCT ea.id) as attempt_count,
+             AVG(ea.accuracy_pct) as avg_student_accuracy
+      FROM institutes i
+      LEFT JOIN users u ON u.institute_id = i.id AND u.role = 'user'
+      LEFT JOIN exams e ON e.institute_id = i.id
+      LEFT JOIN exam_attempts ea ON ea.institute_id = i.id AND ea.status IN ('completed', 'auto_submitted')
+      GROUP BY i.id
+      ORDER BY i.created_at DESC
+    `);
+
+    res.json({
+      totals: totals[0],
+      institutes
+    });
+  } catch (err) {
+    console.error('Platform Analytics Error:', err);
+    res.status(500).json({ error: 'Error fetching platform analytics.' });
   }
 });
 
