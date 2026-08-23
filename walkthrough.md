@@ -19,8 +19,10 @@ We have implemented local production hardening across security, database indexin
    - Added `helmet()` middleware for defense-in-depth HTTP headers.
    - Added `compression()` for Gzip response compression.
 
-4. **📁 File Upload Restrictions**:
-   - [`server/routes/images.js`](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/server/routes/images.js#L23-L34): Configured `multer` with a `5MB` file size cap (`fileSize: 5 * 1024 * 1024`) and a MIME-type filter permitting only `image/jpeg`, `image/jpg`, `image/png`, and `image/webp`.
+4. **📁 File Upload Restrictions & Normalization**:
+   - [`server/routes/images.js`](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/server/routes/images.js#L23-L41): Configured `multer` with a `5MB` size limit and MIME validation. Updated `/api/images/upload` to return `/uploads/${filename}` as `imageUrl` (and `fullUrl`).
+   - [`src/services/csvJsonParser.js`](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/src/services/csvJsonParser.js): Added `normalizeImageUrl` function ensuring all raw filenames (`img_...`), missing slashes (`uploads/...`), or legacy routes (`/api/images/...`) convert cleanly to `/uploads/img_...`.
+   - [`src/views/MasterQuestionEditorView.js`](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/src/views/MasterQuestionEditorView.js): Automatically populates normalized `/uploads/img_...` into form fields and saves cleanly to MySQL.
 
 ---
 
