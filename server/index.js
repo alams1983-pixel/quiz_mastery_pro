@@ -72,6 +72,13 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
+// Expose public static uploads route
+const uploadFolder = path.resolve(process.env.UPLOAD_DIR || 'uploads');
+if (!fs.existsSync(uploadFolder)) {
+  fs.mkdirSync(uploadFolder, { recursive: true });
+}
+app.use('/uploads', express.static(uploadFolder));
+
 // ==========================================
 // DYNAMIC HEALTH CHECK
 // ==========================================
