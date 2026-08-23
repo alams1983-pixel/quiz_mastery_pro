@@ -111,16 +111,26 @@ const frontendIndex = path.join(frontendPath, 'index.html');
 logger.info('📁 Server directory:', { dirname: __dirname });
 logger.info('📁 Frontend directory:', { frontendPath });
 
-// Serve Vite static files with caching
-app.use(express.static(frontendPath, { maxAge: '1d' }));
+// Serve Vite static files
+app.use(express.static(frontendPath, {
+  maxAge: '1d',
+  setHeaders: (res, filePath) => {
+    // Disable caching for index.html so browser always fetches fresh bundle links
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  }
+}));
 
 // SPA fallback
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return next();
+  // Do not serve index.html for missing API routes or missing static assets (.js, .css, .woff2, images)
+  if (req.path.startsWith('/api/') || req.path.startsWith('/assets/') || req.path.startsWith('/uploads/') || /\.(js|css|json|woff2?|ttf|png|jpe?g|webp|svg|ico)$/i.test(req.path)) {
+    return res.status(404).send('Asset not found');
   }
 
   if (fs.existsSync(frontendIndex)) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return res.sendFile(frontendIndex);
   }
 
