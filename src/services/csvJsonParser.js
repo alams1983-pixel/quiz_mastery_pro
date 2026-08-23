@@ -31,6 +31,19 @@ export function unescapeUnicode(str) {
   });
 }
 
+export function normalizeImageUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/uploads/')) return trimmed;
+  if (trimmed.startsWith('uploads/')) return '/' + trimmed;
+  if (trimmed.startsWith('/api/images/')) return trimmed.replace('/api/images/', '/uploads/');
+  if (trimmed.startsWith('api/images/')) return '/' + trimmed.replace('api/images/', 'uploads/');
+  if (/^img_\d+_\d+\.(jpg|jpeg|png|webp|gif)$/i.test(trimmed)) return `/uploads/${trimmed}`;
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
 export function parseJSONQuestions(jsonString) {
   try {
     console.log('[DEBUG csvJsonParser] Incoming jsonString length:', jsonString?.length);
@@ -84,18 +97,18 @@ export function parseJSONQuestions(jsonString) {
         tag_names: item.tag_names || item.tags || [],
         passage_text_en: item.passage_text_en || item.passage_en || item.passage || '',
         passage_text_hi: item.passage_text_hi || item.passage_hi || '',
-        passage_image_url: item.passage_image_url || item.passage_image || '',
+        passage_image_url: normalizeImageUrl(item.passage_image_url || item.passage_image || ''),
         question_text_en: unescapeUnicode(String(qTextEn)),
         question_text_hi: unescapeUnicode(String(qTextHi)),
         options_en: parseArrayField(optsEn),
         options_hi: parseArrayField(optsHi),
-        options_images: parseArrayField(item.options_images || item.option_images || []),
+        options_images: parseArrayField(item.options_images || item.option_images || []).map(normalizeImageUrl),
         correct_option_index: parseInt(ans, 10) || 0,
         explanation_en: unescapeUnicode(String(item.explanation_en || item.explanation || '')),
         explanation_hi: unescapeUnicode(String(item.explanation_hi || '')),
-        explanation_image_url: item.explanation_image_url || item.explanation_image || '',
+        explanation_image_url: normalizeImageUrl(item.explanation_image_url || item.explanation_image || ''),
         difficulty: item.difficulty || 'medium',
-        image_url: item.image_url || item.image || ''
+        image_url: normalizeImageUrl(item.image_url || item.image || '')
       };
     });
 
@@ -161,7 +174,7 @@ export function parseCSVQuestions(csvString) {
         tag_names: parsedTags,
         passage_text_en: getVal('passage_text_en') || getVal('passage_en') || getVal('passage'),
         passage_text_hi: getVal('passage_text_hi') || getVal('passage_hi'),
-        passage_image_url: getVal('passage_image_url') || getVal('passage_image'),
+        passage_image_url: normalizeImageUrl(getVal('passage_image_url') || getVal('passage_image')),
         question_text_en: qEn,
         question_text_hi: qHi,
         options_en: optsEn,
@@ -170,9 +183,9 @@ export function parseCSVQuestions(csvString) {
         correct_option_index: ansIdx,
         explanation_en: getVal('explanation_en') || getVal('explanation'),
         explanation_hi: getVal('explanation_hi'),
-        explanation_image_url: getVal('explanation_image_url') || getVal('explanation_image'),
+        explanation_image_url: normalizeImageUrl(getVal('explanation_image_url') || getVal('explanation_image')),
         difficulty: getVal('difficulty') || 'medium',
-        image_url: getVal('image_url') || getVal('image')
+        image_url: normalizeImageUrl(getVal('image_url') || getVal('image'))
       });
     } else {
       // Simple format

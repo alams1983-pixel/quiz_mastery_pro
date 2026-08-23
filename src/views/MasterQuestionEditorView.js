@@ -1,5 +1,6 @@
 import { apiRequest } from '../services/api.js';
 import { renderMath } from '../services/katexRenderer.js';
+import { normalizeImageUrl } from '../services/csvJsonParser.js';
 
 export function renderMasterQuestionEditorView(navigate, params = {}) {
   const container = document.createElement('div');
@@ -287,7 +288,7 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
             const formData = new FormData();
             formData.append('image', fileInp.files[0]);
             const res = await apiRequest('/images/upload', { method: 'POST', body: formData });
-            urlInp.value = res.imageUrl;
+            urlInp.value = normalizeImageUrl(res.imageUrl || res.fullUrl);
             updatePreview();
           } catch (err) { alert('Image upload failed: ' + err.message); }
         }
@@ -346,7 +347,7 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
             const formData = new FormData();
             formData.append('image', fileInp.files[0]);
             const res = await apiRequest('/images/upload', { method: 'POST', body: formData });
-            urlInp.value = res.imageUrl;
+            urlInp.value = normalizeImageUrl(res.imageUrl || res.fullUrl);
             updatePreview();
           } catch (err) { alert('Image upload failed: ' + err.message); }
         }
@@ -506,13 +507,13 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
 
         if (target.passage_text_en) pTextEn.value = target.passage_text_en;
         if (target.passage_text_hi) pTextHi.value = target.passage_text_hi;
-        if (target.passage_image_url) pImgUrl.value = target.passage_image_url;
-        if (target.image_url) qImgUrl.value = target.image_url;
-        if (target.explanation_image_url) expImgUrl.value = target.explanation_image_url;
+        if (target.passage_image_url) pImgUrl.value = normalizeImageUrl(target.passage_image_url);
+        if (target.image_url) qImgUrl.value = normalizeImageUrl(target.image_url);
+        if (target.explanation_image_url) expImgUrl.value = normalizeImageUrl(target.explanation_image_url);
 
         const enOptsData = target.options_en || target.options || [];
         const hiOptsData = target.options_hi || [];
-        const imgOptsData = target.options_images || [];
+        const imgOptsData = (target.options_images || []).map(normalizeImageUrl);
 
         optionsCount = Math.max(2, Math.min(6, enOptsData.length || 4));
         correctOptionIndex = target.correct_option_index !== undefined ? target.correct_option_index : (target.correct_answer_index || 0);

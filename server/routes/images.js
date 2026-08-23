@@ -37,8 +37,11 @@ router.post('/upload', requireAuth, upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image file uploaded.' });
   }
-  const imageUrl = `/api/images/${req.file.filename}`;
-  res.json({ message: 'Image uploaded successfully.', imageUrl, filename: req.file.filename });
+  const imageUrl = `/uploads/${req.file.filename}`;
+  const host = req.headers.host || '';
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const fullUrl = host ? `${protocol}://${host}${imageUrl}` : imageUrl;
+  res.json({ message: 'Image uploaded successfully.', imageUrl, fullUrl, filename: req.file.filename });
 });
 
 router.get('/:filename', (req, res) => {

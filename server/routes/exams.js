@@ -10,6 +10,19 @@ function safeJSONParse(str, fallback = []) {
   try { return JSON.parse(str); } catch (e) { return fallback; }
 }
 
+function normalizeImageUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/uploads/')) return trimmed;
+  if (trimmed.startsWith('uploads/')) return '/' + trimmed;
+  if (trimmed.startsWith('/api/images/')) return trimmed.replace('/api/images/', '/uploads/');
+  if (trimmed.startsWith('api/images/')) return '/' + trimmed.replace('api/images/', 'uploads/');
+  if (/^img_\d+_\d+\.(jpg|jpeg|png|webp|gif)$/i.test(trimmed)) return `/uploads/${trimmed}`;
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
 function fromBase64Utf8(str) {
   if (typeof str !== 'string' || !str.trim()) return null;
   try {
@@ -483,7 +496,7 @@ router.post('/questions', requireInstituteAdmin, async (req, res) => {
 
     let passageId = null;
     const pTextEn = passage_text_en || '';
-    const pImgUrl = passage_image_url || '';
+    const pImgUrl = normalizeImageUrl(passage_image_url || '');
 
     if (pTextEn.trim() || pImgUrl.trim()) {
       const [existP] = await pool.query('SELECT id FROM passages WHERE institute_id = ? AND passage_text_en = ? LIMIT 1', [instId, pTextEn.trim()]);
@@ -491,13 +504,14 @@ router.post('/questions', requireInstituteAdmin, async (req, res) => {
         passageId = existP[0].id;
       } else {
         const [pRes] = await pool.query('INSERT INTO passages (institute_id, passage_text_en, passage_text_hi, passage_image_url, created_by) VALUES (?, ?, ?, ?, ?)', [
-          instId, pTextEn.trim(), passage_text_hi || '', pImgUrl.trim() || null, req.user.id
+          instId, pTextEn.trim(), passage_text_hi || '', pImgUrl || null, req.user.id
         ]);
         passageId = pRes.insertId;
       }
     }
 
     const finalIsGlobal = isSuper ? (is_global ? 1 : 0) : 0;
+    const normOptImgs = (Array.isArray(options_images) ? options_images : []).map(normalizeImageUrl);
 
     const [result] = await pool.query(`
       INSERT INTO question_bank (
@@ -509,11 +523,11 @@ router.post('/questions', requireInstituteAdmin, async (req, res) => {
       instId, category_id || null, passageId, question_text_en, question_text_hi || '',
       JSON.stringify(Array.isArray(options_en) ? options_en : [options_en]),
       JSON.stringify(Array.isArray(options_hi) ? options_hi : []),
-      JSON.stringify(Array.isArray(options_images) ? options_images : []),
+      JSON.stringify(normOptImgs),
       parseInt(correct_option_index, 10) || 0,
       explanation_en || '', explanation_hi || '',
-      explanation_image_url || null,
-      image_url || null, difficulty || 'medium', finalIsGlobal
+      normalizeImageUrl(explanation_image_url) || null,
+      normalizeImageUrl(image_url) || null, difficulty || 'medium', finalIsGlobal
     ]);
 
     res.status(201).json({ message: 'Question created in Master Question Bank.', questionId: result.insertId });
@@ -616,12 +630,35 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
   try {
     const qId = req.params.questionId;
     const {
-      category_id, question_text_en, question_text_hi, options_en, options_hi,
-      correct_option_index, explanation_en, explanation_hi, image_url, difficulty, is_global
+      category_id, question_text_en, question_text_hi, options_en, options_hi, options_images,
+      correct_option_index, explanation_en, explanation_hi, explanation_image_url, image_url,
+      passage_text_en, passage_text_hi, passage_image_url, difficulty, is_global
     } = req.body;
 
     if (!question_text_en || !options_en) {
       return res.status(400).json({ error: 'Question text and English options are required.' });
+    }
+
+    const normOptImgs = (Array.isArray(options_images) ? options_images : []).map(normalizeImageUrl);
+    const normPImgUrl = normalizeImageUrl(passage_image_url || '');
+
+    // Handle passage update if present
+    if (passage_text_en || normPImgUrl) {
+      const [existingQ] = await pool.query('SELECT passage_id, institute_id FROM question_bank WHERE id = ?', [qId]);
+      if (existingQ.length > 0) {
+        const instId = existingQ[0].institute_id;
+        const passId = existingQ[0].passage_id;
+        if (passId) {
+          await pool.query('UPDATE passages SET passage_text_en = ?, passage_text_hi = ?, passage_image_url = ? WHERE id = ?', [
+            passage_text_en || '', passage_text_hi || '', normPImgUrl || null, passId
+          ]);
+        } else {
+          const [pRes] = await pool.query('INSERT INTO passages (institute_id, passage_text_en, passage_text_hi, passage_image_url, created_by) VALUES (?, ?, ?, ?, ?)', [
+            instId, passage_text_en || '', passage_text_hi || '', normPImgUrl || null, req.user.id
+          ]);
+          await pool.query('UPDATE question_bank SET passage_id = ? WHERE id = ?', [pRes.insertId, qId]);
+        }
+      }
     }
 
     await pool.query(`
@@ -631,9 +668,11 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
         question_text_hi = ?,
         options_en_json = ?,
         options_hi_json = ?,
+        options_images_json = ?,
         correct_option_index = ?,
         explanation_en = ?,
         explanation_hi = ?,
+        explanation_image_url = ?,
         image_url = ?,
         difficulty = ?,
         is_global = ?
@@ -644,10 +683,12 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
       question_text_hi || '',
       JSON.stringify(Array.isArray(options_en) ? options_en : [options_en]),
       JSON.stringify(Array.isArray(options_hi) ? options_hi : []),
+      JSON.stringify(normOptImgs),
       parseInt(correct_option_index, 10) || 0,
       explanation_en || '',
       explanation_hi || '',
-      image_url || '',
+      normalizeImageUrl(explanation_image_url) || null,
+      normalizeImageUrl(image_url) || null,
       difficulty || 'medium',
       is_global ? 1 : 0,
       qId
@@ -809,7 +850,7 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
       let passageId = null;
       const pTextEn = q.passage_text_en || q.passage_en || q.passage || '';
       const pTextHi = q.passage_text_hi || q.passage_hi || '';
-      const pImgUrl = q.passage_image_url || q.passage_image || '';
+      const pImgUrl = normalizeImageUrl(q.passage_image_url || q.passage_image || '');
 
       if (pTextEn.trim() || pImgUrl.trim()) {
         const pKey = (pTextEn.trim() + '||' + pImgUrl.trim());
@@ -821,7 +862,7 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
             passageId = existP[0].id;
           } else {
             const [pRes] = await pool.query('INSERT INTO passages (institute_id, passage_text_en, passage_text_hi, passage_image_url, created_by) VALUES (?, ?, ?, ?, ?)', [
-              instId, pTextEn.trim(), pTextHi.trim(), pImgUrl.trim() || null, req.user.id
+              instId, pTextEn.trim(), pTextHi.trim(), pImgUrl || null, req.user.id
             ]);
             passageId = pRes.insertId;
           }
@@ -830,7 +871,8 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
       }
 
       const optsHi = Array.isArray(q.options_hi) ? q.options_hi : [];
-      const optsImgs = Array.isArray(q.options_images) ? q.options_images : [];
+      const rawOptsImgs = Array.isArray(q.options_images) ? q.options_images : [];
+      const optsImgs = rawOptsImgs.map(normalizeImageUrl);
       
       // Resolve Category ID by Name if provided
       let targetCatId = category_id || q.category_id || null;
@@ -854,8 +896,8 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
         JSON.stringify(optsEn), JSON.stringify(optsHi), JSON.stringify(optsImgs),
         parseInt(q.correct_option_index, 10) || 0,
         q.explanation_en || q.explanation || '', q.explanation_hi || '',
-        q.explanation_image_url || q.explanation_image || null,
-        q.image_url || q.image || null,
+        normalizeImageUrl(q.explanation_image_url || q.explanation_image) || null,
+        normalizeImageUrl(q.image_url || q.image) || null,
         q.difficulty || 'medium', finalIsGlobal
       ]);
 
