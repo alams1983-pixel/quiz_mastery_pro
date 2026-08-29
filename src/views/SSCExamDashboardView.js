@@ -1,6 +1,7 @@
 import { apiRequest, getUser } from '../services/api.js';
 import { ExamSessionManager, PALETTE_STATES } from '../services/examSession.js';
 import { renderRichContent } from '../services/richContent.js';
+import { renderMath } from '../services/katexRenderer.js';
 
 export function renderSSCExamDashboardView(attemptId, navigate, extraParams = {}) {
   const container = document.createElement('div');
@@ -359,6 +360,10 @@ function renderCurrentQuestion(container) {
       renderPaletteGrid(container);
     });
   });
+
+  // Render KaTeX Math in question pane
+  renderMath(container.querySelector('#ssc-q-pane'));
+  if (passageBox) renderMath(passageBox);
 }
 
 function renderPaletteGrid(container) {

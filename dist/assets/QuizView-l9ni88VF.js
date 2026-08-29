@@ -1,4 +1,4 @@
-import{d as $,g as I,b as k,e as lt}from"./index-w1j3NIg4.js";import{r as R}from"./richContent-CaTr0paQ.js";function pt(q,Q,T){const t=document.createElement("div");t.className="view-container",t.innerHTML=`
+import{a as $,g as I,c as k,e as lt}from"./index-YWsq3nMJ.js";import{r as R}from"./richContent-D6tohV2-.js";function pt(q,Q,T){const t=document.createElement("div");t.className="view-container",t.innerHTML=`
     <div class="quiz-wrapper" id="quizWrapper">
       <!-- 1. START SCREEN -->
       <div id="startScreen" style="text-align:center; padding: 20px 0;">

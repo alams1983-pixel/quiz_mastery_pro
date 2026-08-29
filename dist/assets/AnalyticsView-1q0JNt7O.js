@@ -1,4 +1,4 @@
-import{g as d,r as i}from"./index-w1j3NIg4.js";function u(a){const o=document.createElement("div");o.className="view-container fade-in";const e=d()||{role:"user"};return e.role==="super_admin"?p(o):e.role==="institute_admin"||e.role==="admin"?c(o):l(o,a),o}async function l(a,o){a.innerHTML=`
+import{g as d,r as i}from"./index-YWsq3nMJ.js";function u(a){const o=document.createElement("div");o.className="view-container fade-in";const e=d()||{role:"user"};return e.role==="super_admin"?p(o):e.role==="institute_admin"||e.role==="admin"?c(o):l(o,a),o}async function l(a,o){a.innerHTML=`
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">📊 My CBT Exam Analytics & Performance</h1>
       <p style="color: var(--text-muted); font-size: 0.95rem;">
