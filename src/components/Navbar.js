@@ -65,10 +65,15 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
         </button>
 
         ${user ? `
+          <button class="sidebar-nav-item ${currentView === 'student-settings' ? 'active' : ''}" id="sideSettings">
+            <i class="ri-settings-4-line nav-icon"></i>
+            <span class="nav-label">Settings</span>
+          </button>
+
           <button class="sidebar-nav-item ${currentView === 'analytics' ? 'active' : ''}" id="sideAnalytics">
             <i class="${user.role === 'super_admin' ? 'ri-pie-chart-2-line' : (user.role === 'institute_admin' || user.role === 'admin' ? 'ri-user-star-line' : 'ri-bar-chart-box-line')} nav-icon"></i>
             <span class="nav-label">
-              ${user.role === 'super_admin' ? 'Platform Analytics' : (user.role === 'institute_admin' || user.role === 'admin' ? 'Student Analytics' : 'My Analytics')}
+              ${user.role === 'super_admin' ? 'Platform Analytics' : (user.role === 'institute_admin' || user.role === 'admin' ? 'Analytics' : 'My Analytics')}
             </span>
             <span class="nav-badge green">Live</span>
           </button>
@@ -80,8 +85,8 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
 
           <button class="sidebar-nav-item ${currentView === 'institute-admin' ? 'active' : ''}" id="sideInstituteAdmin">
             <i class="ri-building-4-line nav-icon"></i>
-            <span class="nav-label">CBT Exams</span>
-            <span class="nav-badge orange">Engine</span>
+            <span class="nav-label">Exam Setup</span>
+            <span class="nav-badge orange">Portal</span>
           </button>
 
           <button class="sidebar-nav-item ${currentView === 'exam-questions' || currentView === 'question-editor' ? 'active' : ''}" id="sideExamQuestions">
@@ -170,7 +175,7 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
           </div>
         </div>
 
-        <div class="header-right">
+        <div class="header-right" style="display: flex; gap: 10px; align-items: center;">
           <div class="header-role-indicator">
             <span class="role-pill-badge ${user ? user.role : 'guest'}">${currentRoleTitle}</span>
           </div>
@@ -225,6 +230,9 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
 
   const sideStudQuizzes = shell.querySelector('#sideStudentQuizzes');
   if (sideStudQuizzes) sideStudQuizzes.addEventListener('click', () => navTo('student-quizzes'));
+
+  const sideSettings = shell.querySelector('#sideSettings');
+  if (sideSettings) sideSettings.addEventListener('click', () => navTo('student-settings'));
 
   const sideAna = shell.querySelector('#sideAnalytics');
   if (sideAna) sideAna.addEventListener('click', () => navTo('analytics'));

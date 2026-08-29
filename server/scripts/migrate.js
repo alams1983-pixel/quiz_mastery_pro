@@ -36,8 +36,9 @@ async function runMigrations() {
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         full_name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NULL,
+        password_hash VARCHAR(255) NULL,
+        firebase_uid VARCHAR(128) UNIQUE NULL,
         role ENUM('super_admin', 'institute_admin', 'admin', 'user') DEFAULT 'user',
         institute_id INT NULL,
         phone_number VARCHAR(20) NULL,
@@ -47,17 +48,69 @@ async function runMigrations() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // Safely add firebase_uid column if missing in existing users table
+    const [cols] = await conn.query("SHOW COLUMNS FROM users LIKE 'firebase_uid'");
+    if (cols.length === 0) {
+      await conn.query("ALTER TABLE users ADD COLUMN firebase_uid VARCHAR(128) UNIQUE NULL AFTER password_hash");
+      console.log("  ➕ Added firebase_uid column to users table.");
+    }
+    // Safely modify email and password_hash to allow NULL for phone-only logins
+    await conn.query("ALTER TABLE users MODIFY COLUMN email VARCHAR(255) NULL");
+    await conn.query("ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL");
+
     // Institutes table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS institutes (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         code VARCHAR(50) UNIQUE NOT NULL,
+        slug VARCHAR(100) UNIQUE NULL,
         logo_url VARCHAR(255) NULL,
+        primary_color VARCHAR(20) DEFAULT '#4f46e5',
+        welcome_title VARCHAR(255) NULL,
+        welcome_subtitle TEXT NULL,
+        banner_url VARCHAR(500) NULL,
+        allow_global_content BOOLEAN DEFAULT TRUE,
         contact_email VARCHAR(255) NOT NULL,
         address TEXT NULL,
         status ENUM('active', 'inactive') DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Safely add any missing columns to institutes table for existing installations
+    const addColumnSafely = async (table, column, definition) => {
+      try {
+        const [cols] = await conn.query(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, [column]);
+        if (cols.length === 0) {
+          await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+          console.log(`  ➕ Added column ${column} to ${table}`);
+        }
+      } catch (err) {
+        console.warn(`  ⚠️ Failed adding column ${column} to ${table}:`, err.message);
+      }
+    };
+
+    await addColumnSafely('institutes', 'slug', 'VARCHAR(100) UNIQUE NULL');
+    await addColumnSafely('institutes', 'primary_color', "VARCHAR(20) DEFAULT '#4f46e5'");
+    await addColumnSafely('institutes', 'welcome_title', 'VARCHAR(255) NULL');
+    await addColumnSafely('institutes', 'welcome_subtitle', 'TEXT NULL');
+    await addColumnSafely('institutes', 'banner_url', 'VARCHAR(500) NULL');
+    await addColumnSafely('institutes', 'allow_global_content', 'BOOLEAN DEFAULT TRUE');
+    await addColumnSafely('student_batches', 'status', "ENUM('pending', 'approved', 'rejected') DEFAULT 'approved'");
+
+    // Institute Memberships table (Multi-Institute enrollment)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS institute_memberships (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        institute_id INT NOT NULL,
+        user_id INT NOT NULL,
+        role ENUM('institute_admin', 'teacher', 'student') NOT NULL DEFAULT 'student',
+        status ENUM('active', 'inactive') DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_user_institute (institute_id, user_id),
+        FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
@@ -213,6 +266,7 @@ async function runMigrations() {
       CREATE TABLE IF NOT EXISTS student_batches (
         user_id INT NOT NULL,
         batch_id INT NOT NULL,
+        status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id, batch_id),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -236,6 +290,7 @@ async function runMigrations() {
     console.log('⚡ Applying Database Performance Indexes...');
     await addIndexSafely('users', 'idx_users_role', 'role');
     await addIndexSafely('users', 'idx_users_institute', 'institute_id');
+    await addIndexSafely('users', 'idx_users_firebase_uid', 'firebase_uid');
     await addIndexSafely('quizzes', 'idx_quizzes_institute', 'institute_id');
     await addIndexSafely('quizzes', 'idx_quizzes_category', 'category_id');
     await addIndexSafely('questions', 'idx_questions_quiz', 'quiz_id');

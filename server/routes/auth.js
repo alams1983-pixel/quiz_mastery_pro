@@ -5,6 +5,9 @@ import crypto from 'crypto';
 import pool from '../db.js';
 import logger from '../logger.js';
 import { requireAuth, requireSuperAdmin } from '../middleware/auth.js';
+import { generateUniqueSlug } from '../utils/slugify.js';
+
+import { verifyFirebaseIdToken } from '../firebaseAdmin.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'edutorai_mastery_quiz_secret_key_2026';
@@ -18,7 +21,7 @@ function generateInstituteCode(prefix = 'EDU') {
 // 1. User Registration (Student vs Teacher/Coaching Owner)
 router.post('/register', async (req, res) => {
   try {
-    const { full_name, email, password, account_type, coaching_name, phone_number, institute_code } = req.body;
+    const { full_name, email, password, account_type, coaching_name, phone_number, institute_code, institute_slug } = req.body;
     if (!full_name || !email || !password) {
       return res.status(400).json({ error: 'Full name, email, and password are required.' });
     }
@@ -41,17 +44,22 @@ router.post('/register', async (req, res) => {
 
       userRole = 'institute_admin';
       const instCode = generateInstituteCode(coaching_name.trim().substring(0, 3).toUpperCase());
+      const instSlug = await generateUniqueSlug(pool, coaching_name.trim());
 
       const [instResult] = await pool.query(
-        'INSERT INTO institutes (name, code, contact_email) VALUES (?, ?, ?)',
-        [coaching_name.trim(), instCode, email]
+        'INSERT INTO institutes (name, code, slug, contact_email) VALUES (?, ?, ?, ?)',
+        [coaching_name.trim(), instCode, instSlug, email]
       );
       instituteId = instResult.insertId;
 
     } else {
       // Student registration
-      if (institute_code) {
-        const [insts] = await pool.query('SELECT id FROM institutes WHERE code = ? AND status = "active"', [institute_code.trim().toUpperCase()]);
+      const lookupParam = institute_slug || institute_code;
+      if (lookupParam) {
+        const [insts] = await pool.query(
+          'SELECT id FROM institutes WHERE (code = ? OR slug = ?) AND status = "active"',
+          [lookupParam.trim().toUpperCase(), lookupParam.trim()]
+        );
         if (insts.length > 0) {
           instituteId = insts[0].id;
         }
@@ -64,6 +72,17 @@ router.post('/register', async (req, res) => {
     );
 
     const userId = result.insertId;
+
+    // Create initial institute membership if instituteId exists
+    if (instituteId) {
+      const membershipRole = isTeacher ? 'institute_admin' : 'student';
+      await pool.query(`
+        INSERT INTO institute_memberships (institute_id, user_id, role)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE status = 'active'
+      `, [instituteId, userId, membershipRole]);
+    }
+
     const token = jwt.sign(
       { id: userId, full_name, email, role: userRole, institute_id: instituteId },
       JWT_SECRET,
@@ -84,7 +103,7 @@ router.post('/register', async (req, res) => {
 // 2. User Login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, institute_slug, institute_code } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
@@ -100,8 +119,56 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
+    // Check target portal institute (if logging in via specific portal link)
+    const lookupParam = institute_slug || institute_code;
+    let targetInstitute = null;
+    let requiresEnrollmentConfirmation = false;
+
+    if (lookupParam && user.role === 'user') {
+      const [insts] = await pool.query(
+        'SELECT id, name, code, slug, logo_url FROM institutes WHERE (slug = ? OR code = ?) AND status = "active"',
+        [lookupParam.trim(), lookupParam.trim().toUpperCase()]
+      );
+      if (insts.length > 0) {
+        targetInstitute = insts[0];
+
+        // Check if user is already enrolled in target institute
+        const [mem] = await pool.query(
+          'SELECT id FROM institute_memberships WHERE user_id = ? AND institute_id = ?',
+          [user.id, targetInstitute.id]
+        );
+
+        if (mem.length === 0 && user.institute_id && user.institute_id !== targetInstitute.id) {
+          // User is enrolled in another institute, but not yet in targetInstitute
+          // Get primary/existing institute name for the prompt modal
+          const [prevInst] = await pool.query('SELECT id, name FROM institutes WHERE id = ?', [user.institute_id]);
+          requiresEnrollmentConfirmation = true;
+
+          return res.json({
+            requires_enrollment_confirmation: true,
+            user_id: user.id,
+            email: user.email,
+            previous_institute_name: prevInst.length > 0 ? prevInst[0].name : 'another coaching institute',
+            target_institute: targetInstitute
+          });
+        } else if (mem.length === 0) {
+          // Auto-enroll if user had no previous institute
+          await pool.query(
+            'INSERT INTO institute_memberships (institute_id, user_id, role) VALUES (?, ?, "student") ON DUPLICATE KEY UPDATE status="active"',
+            [targetInstitute.id, user.id]
+          );
+          if (!user.institute_id) {
+            await pool.query('UPDATE users SET institute_id = ? WHERE id = ?', [targetInstitute.id, user.id]);
+            user.institute_id = targetInstitute.id;
+          }
+        }
+      }
+    }
+
+    const activeInstId = (targetInstitute && targetInstitute.id) ? targetInstitute.id : user.institute_id;
+
     const token = jwt.sign(
-      { id: user.id, full_name: user.full_name, email: user.email, role: user.role, institute_id: user.institute_id },
+      { id: user.id, full_name: user.full_name, email: user.email, role: user.role, institute_id: activeInstId },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -114,12 +181,169 @@ router.post('/login', async (req, res) => {
         full_name: user.full_name,
         email: user.email,
         role: user.role,
-        institute_id: user.institute_id
+        institute_id: activeInstId
       }
     });
   } catch (err) {
     console.error('Login Error:', err);
     res.status(500).json({ error: 'Server error during login.' });
+  }
+});
+
+// 2b. Firebase Auth Handler (Supports Email/Password, Google OAuth, and Phone OTP Sync & Linking)
+router.post('/firebase-login', async (req, res) => {
+  try {
+    const { idToken, account_type, coaching_name, phone_number, full_name, institute_slug, institute_code } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ error: 'Firebase ID token is required.' });
+    }
+
+    const decodedToken = await verifyFirebaseIdToken(idToken);
+    const firebaseUid = decodedToken.uid;
+    const email = decodedToken.email || null;
+    const phone = decodedToken.phone_number || phone_number || null;
+    const displayName = decodedToken.name || full_name || (email ? email.split('@')[0] : 'Student User');
+
+    let user = null;
+
+    // 1. Try matching by firebase_uid
+    const [byUid] = await pool.query('SELECT * FROM users WHERE firebase_uid = ?', [firebaseUid]);
+    if (byUid.length > 0) {
+      user = byUid[0];
+    } else {
+      // 2. Account Linking: Try matching by email
+      if (email) {
+        const [byEmail] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+        if (byEmail.length > 0) {
+          user = byEmail[0];
+          await pool.query('UPDATE users SET firebase_uid = ? WHERE id = ?', [firebaseUid, user.id]);
+          user.firebase_uid = firebaseUid;
+          logger.info(`Linked existing user #${user.id} (${email}) to Firebase UID ${firebaseUid}`);
+        }
+      }
+
+      // 3. Account Linking: Try matching by phone_number
+      if (!user && phone) {
+        const [byPhone] = await pool.query('SELECT * FROM users WHERE phone_number = ?', [phone]);
+        if (byPhone.length > 0) {
+          user = byPhone[0];
+          await pool.query('UPDATE users SET firebase_uid = ? WHERE id = ?', [firebaseUid, user.id]);
+          user.firebase_uid = firebaseUid;
+          logger.info(`Linked existing user #${user.id} (Phone: ${phone}) to Firebase UID ${firebaseUid}`);
+        }
+      }
+    }
+
+    // 4. Register new user if no match found
+    if (!user) {
+      const isTeacher = account_type === 'teacher' || account_type === 'institute_admin';
+      let userRole = isTeacher ? 'institute_admin' : 'user';
+      let instituteId = null;
+
+      if (isTeacher) {
+        const instName = coaching_name ? coaching_name.trim() : `${displayName}'s Coaching`;
+        const instCode = generateInstituteCode(instName.substring(0, 3).toUpperCase());
+        const instSlug = await generateUniqueSlug(pool, instName);
+
+        const [instResult] = await pool.query(
+          'INSERT INTO institutes (name, code, slug, contact_email) VALUES (?, ?, ?, ?)',
+          [instName, instCode, instSlug, email || '']
+        );
+        instituteId = instResult.insertId;
+      } else {
+        const lookupParam = institute_slug || institute_code;
+        if (lookupParam) {
+          const [insts] = await pool.query(
+            'SELECT id FROM institutes WHERE (code = ? OR slug = ?) AND status = "active"',
+            [lookupParam.trim().toUpperCase(), lookupParam.trim()]
+          );
+          if (insts.length > 0) {
+            instituteId = insts[0].id;
+          }
+        }
+      }
+
+      const [insertResult] = await pool.query(
+        'INSERT INTO users (full_name, email, firebase_uid, role, institute_id, phone_number) VALUES (?, ?, ?, ?, ?, ?)',
+        [displayName, email, firebaseUid, userRole, instituteId, phone]
+      );
+
+      const newUserId = insertResult.insertId;
+
+      if (instituteId) {
+        const membershipRole = isTeacher ? 'institute_admin' : 'student';
+        await pool.query(`
+          INSERT INTO institute_memberships (institute_id, user_id, role)
+          VALUES (?, ?, ?)
+          ON DUPLICATE KEY UPDATE status = 'active'
+        `, [instituteId, newUserId, membershipRole]);
+      }
+
+      const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [newUserId]);
+      user = newUsers[0];
+      logger.info(`Registered new user #${newUserId} (${userRole}) via Firebase Auth`);
+    }
+
+    // Check multi-coaching portal enrollment switch
+    const lookupParam = institute_slug || institute_code;
+    let targetInstitute = null;
+
+    if (lookupParam && user.role === 'user') {
+      const [insts] = await pool.query(
+        'SELECT id, name, code, slug, logo_url FROM institutes WHERE (slug = ? OR code = ?) AND status = "active"',
+        [lookupParam.trim(), lookupParam.trim().toUpperCase()]
+      );
+      if (insts.length > 0) {
+        targetInstitute = insts[0];
+        const [mem] = await pool.query(
+          'SELECT id FROM institute_memberships WHERE user_id = ? AND institute_id = ?',
+          [user.id, targetInstitute.id]
+        );
+
+        if (mem.length === 0 && user.institute_id && user.institute_id !== targetInstitute.id) {
+          const [prevInst] = await pool.query('SELECT id, name FROM institutes WHERE id = ?', [user.institute_id]);
+          return res.json({
+            requires_enrollment_confirmation: true,
+            user_id: user.id,
+            email: user.email,
+            previous_institute_name: prevInst.length > 0 ? prevInst[0].name : 'another coaching institute',
+            target_institute: targetInstitute
+          });
+        } else if (mem.length === 0) {
+          await pool.query(
+            'INSERT INTO institute_memberships (institute_id, user_id, role) VALUES (?, ?, "student") ON DUPLICATE KEY UPDATE status="active"',
+            [targetInstitute.id, user.id]
+          );
+          if (!user.institute_id) {
+            await pool.query('UPDATE users SET institute_id = ? WHERE id = ?', [targetInstitute.id, user.id]);
+            user.institute_id = targetInstitute.id;
+          }
+        }
+      }
+    }
+
+    const activeInstId = (targetInstitute && targetInstitute.id) ? targetInstitute.id : user.institute_id;
+
+    const token = jwt.sign(
+      { id: user.id, full_name: user.full_name, email: user.email, role: user.role, institute_id: activeInstId },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Firebase login successful.',
+      token,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role,
+        institute_id: activeInstId
+      }
+    });
+  } catch (err) {
+    console.error('Firebase Login Error:', err);
+    res.status(500).json({ error: err.message || 'Server error during Firebase login.' });
   }
 });
 
@@ -268,6 +492,34 @@ router.post('/reset-password', async (req, res) => {
   } catch (err) {
     logger.error('Error resetting password', err);
     res.status(500).json({ error: 'Error resetting password.' });
+  }
+});
+
+// 5b. Authenticated User Change Password (for Student Settings page)
+router.put('/change-password', requireAuth, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: 'Current password and new password are required.' });
+    }
+
+    const [users] = await pool.query('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const match = await bcrypt.compare(current_password, users[0].password_hash);
+    if (!match) {
+      return res.status(400).json({ error: 'Current password is incorrect.' });
+    }
+
+    const newHash = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, req.user.id]);
+
+    res.json({ message: 'Password updated successfully!' });
+  } catch (err) {
+    console.error('Change Password Error:', err);
+    res.status(500).json({ error: 'Error updating password.' });
   }
 });
 

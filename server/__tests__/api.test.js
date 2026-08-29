@@ -74,4 +74,31 @@ describe('Hardened API & Security Suite', () => {
       expect(res.body).toHaveProperty('error');
     });
   });
+
+  describe('Role-Based Deletion & Mutation Guards', () => {
+    it('should reject unauthenticated DELETE requests on exams with 401', async () => {
+      const res = await request(app).delete('/api/exams/9999');
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject unauthenticated DELETE requests on quizzes with 401', async () => {
+      const res = await request(app).delete('/api/quizzes/9999');
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject unauthenticated DELETE requests on batches with 401', async () => {
+      const res = await request(app).delete('/api/exams/batches/9999');
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject unauthenticated DELETE requests on categories with 401', async () => {
+      const res = await request(app).delete('/api/categories/9999');
+      expect(res.status).toBe(401);
+    });
+
+    it('should reject unauthenticated DELETE requests on tags with 401', async () => {
+      const res = await request(app).delete('/api/tags/9999');
+      expect(res.status).toBe(401);
+    });
+  });
 });

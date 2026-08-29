@@ -101,12 +101,137 @@ router.post('/batches', requireInstituteAdmin, async (req, res) => {
 router.delete('/batches/:id', requireInstituteAdmin, async (req, res) => {
   try {
     const batchId = req.params.id;
+    const [rows] = await pool.query('SELECT institute_id FROM batches WHERE id = ?', [batchId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Batch not found.' });
+
+    if (req.user.role !== 'super_admin' && rows[0].institute_id !== req.user.institute_id) {
+      return res.status(403).json({ error: 'Access denied. You can only delete batches belonging to your institute.' });
+    }
+
     await pool.query('DELETE FROM batches WHERE id = ?', [batchId]);
     res.json({ message: 'Batch deleted successfully.' });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting batch.' });
   }
 });
+
+// 0b. Get Pending Student Batch Join Requests for Teacher's Institute
+router.get('/batches/pending-requests', requireInstituteAdmin, async (req, res) => {
+  try {
+    const instId = req.user.role === 'super_admin' ? (req.query.institute_id || req.user.institute_id) : req.user.institute_id;
+    if (!instId) return res.json({ requests: [] });
+
+    const [requests] = await pool.query(`
+      SELECT sb.user_id, sb.batch_id, sb.status, sb.created_at,
+             u.full_name as student_name, u.email as student_email, u.phone_number,
+             b.name as batch_name, b.code as batch_code
+      FROM student_batches sb
+      JOIN batches b ON sb.batch_id = b.id
+      JOIN users u ON sb.user_id = u.id
+      WHERE b.institute_id = ? AND sb.status = 'pending'
+      ORDER BY sb.created_at DESC
+    `, [instId]);
+
+    res.json({ requests });
+  } catch (err) {
+    console.error('Fetch Pending Batch Requests Error:', err);
+    res.status(500).json({ error: 'Error fetching pending batch requests.' });
+  }
+});
+
+// 0c. Approve or Reject Student Batch Join Request
+router.post('/batches/approve-request', requireInstituteAdmin, async (req, res) => {
+  try {
+    const { user_id, batch_id, action } = req.body; // action: 'approve' or 'reject'
+    if (!user_id || !batch_id || !action) {
+      return res.status(400).json({ error: 'user_id, batch_id, and action are required.' });
+    }
+
+    const instId = req.user.role === 'super_admin' ? (req.body.institute_id || req.user.institute_id) : req.user.institute_id;
+    const [batches] = await pool.query('SELECT institute_id FROM batches WHERE id = ?', [batch_id]);
+    if (batches.length === 0) return res.status(404).json({ error: 'Batch not found.' });
+
+    if (req.user.role !== 'super_admin' && batches[0].institute_id !== instId) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    await pool.query(`
+      UPDATE student_batches
+      SET status = ?
+      WHERE user_id = ? AND batch_id = ?
+    `, [newStatus, user_id, batch_id]);
+
+    res.json({ message: `Student batch request ${newStatus} successfully.`, status: newStatus });
+  } catch (err) {
+    console.error('Approve Batch Request Error:', err);
+    res.status(500).json({ error: 'Error updating batch request.' });
+  }
+});
+
+// Helper: Verify Student/User access permission for a CBT Exam
+async function verifyExamStudentAccess(user, examId) {
+  const [rows] = await pool.query('SELECT * FROM exams WHERE id = ?', [examId]);
+  if (rows.length === 0) return { allowed: false, error: 'Exam not found.', status: 404 };
+
+  const exam = rows[0];
+
+  // 1. Draft check
+  if (!exam.is_published && (!user || (user.role !== 'super_admin' && user.role !== 'institute_admin' && user.id !== exam.created_by))) {
+    return { allowed: false, error: 'This CBT exam is currently draft and unpublished.', status: 403 };
+  }
+
+  // 2. Super Admin or Creator or Institute Admin of exam's institute
+  if (user && (user.role === 'super_admin' || user.id === exam.created_by || (user.role === 'institute_admin' && user.institute_id === exam.institute_id))) {
+    return { allowed: true, exam };
+  }
+
+  // 3. Public Exam check
+  if (exam.is_public) {
+    const instId = user ? (user.institute_id || 0) : 0;
+    if (instId > 0) {
+      const [insts] = await pool.query('SELECT allow_global_content FROM institutes WHERE id = ?', [instId]);
+      if (insts.length > 0 && insts[0].allow_global_content === 0 && exam.institute_id !== instId) {
+        return { allowed: false, error: 'Global public exams are disabled by your coaching institute.', status: 403 };
+      }
+    }
+    return { allowed: true, exam };
+  }
+
+  // 4. Private Institute Exam check
+  if (!user) {
+    return { allowed: false, error: 'Sign in to access this CBT exam.', status: 401 };
+  }
+
+  // Direct user.institute_id match if exam is available to all batches
+  if (exam.is_all_batches && user.institute_id && exam.institute_id && user.institute_id === exam.institute_id) {
+    return { allowed: true, exam };
+  }
+
+  // Multi-Institute Memberships check if exam is available to all batches
+  if (exam.is_all_batches && exam.institute_id) {
+    const [mems] = await pool.query(
+      'SELECT id FROM institute_memberships WHERE user_id = ? AND institute_id = ? AND status = "active"',
+      [user.id, exam.institute_id]
+    );
+    if (mems.length > 0) {
+      return { allowed: true, exam };
+    }
+  }
+
+  // Student Batches check (Must be approved)
+  const [batches] = await pool.query(`
+    SELECT eb.batch_id FROM exam_batches eb
+    JOIN student_batches sb ON eb.batch_id = sb.batch_id
+    WHERE eb.exam_id = ? AND sb.user_id = ? AND (sb.status = 'approved' OR sb.status IS NULL)
+  `, [examId, user.id]);
+
+  if (batches.length > 0) {
+    return { allowed: true, exam };
+  }
+
+  return { allowed: false, error: 'Access denied to this coaching CBT exam. Approved batch membership required.', status: 403 };
+}
 
 // 1. Get List of Exams (Scoped by role, institute, and student batch)
 router.get('/', optionalAuth, async (req, res) => {
@@ -132,18 +257,35 @@ router.get('/', optionalAuth, async (req, res) => {
     const params = [];
 
     if (!user || user.role === 'user') {
+      let allowGlobal = 1;
+      let userInstIds = [user ? (user.institute_id || 0) : 0];
+      if (user) {
+        const [mems] = await pool.query('SELECT institute_id FROM institute_memberships WHERE user_id = ? AND status = "active"', [user.id]);
+        mems.forEach(m => userInstIds.push(m.institute_id));
+      }
+      userInstIds = [...new Set(userInstIds.filter(id => id > 0))];
+      if (userInstIds.length === 0) userInstIds = [0];
+
+      const primaryInstId = user ? (user.institute_id || userInstIds[0]) : 0;
+      if (primaryInstId > 0) {
+        const [instInfo] = await pool.query('SELECT allow_global_content FROM institutes WHERE id = ?', [primaryInstId]);
+        if (instInfo.length > 0 && instInfo[0].allow_global_content === 0) {
+          allowGlobal = 0;
+        }
+      }
+
       sql += ` AND e.is_published = 1 AND (
-        e.is_public = 1 OR (
-          e.institute_id = ? AND (
+        (e.is_public = 1 AND ${allowGlobal === 1 ? '1=1' : '1=0'}) OR (
+          e.institute_id IN (${userInstIds.join(',')}) AND (
             e.is_all_batches = 1 OR e.id IN (
               SELECT eb_sub.exam_id FROM exam_batches eb_sub
               JOIN student_batches sb_sub ON eb_sub.batch_id = sb_sub.batch_id
-              WHERE sb_sub.user_id = ?
+              WHERE sb_sub.user_id = ? AND (sb_sub.status = 'approved' OR sb_sub.status IS NULL)
             )
           )
         )
       )`;
-      params.push(user ? (user.institute_id || -1) : -1, user ? user.id : -1);
+      params.push(user ? user.id : -1);
     } else if (user.role === 'institute_admin' || user.role === 'admin') {
       sql += ` AND (e.institute_id = ? OR e.is_public = 1)`;
       params.push(user.institute_id || -1);
@@ -163,6 +305,11 @@ router.get('/', optionalAuth, async (req, res) => {
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const examId = req.params.id;
+    const access = await verifyExamStudentAccess(req.user, examId);
+    if (!access.allowed) {
+      return res.status(access.status || 403).json({ error: access.error });
+    }
+
     const [exams] = await pool.query(`
       SELECT e.*, i.name as institute_name, c.name as category_name, c.icon as category_icon,
              GROUP_CONCAT(DISTINCT t.name) as tag_names,
@@ -260,10 +407,56 @@ router.post('/', requireInstituteAdmin, async (req, res) => {
   }
 });
 
+// Helper: Verify Admin ownership/permission for an Exam
+async function verifyExamOwnership(req, examId) {
+  if (!req.user) return false;
+  if (req.user.role === 'super_admin') return true;
+
+  const [rows] = await pool.query('SELECT institute_id, created_by FROM exams WHERE id = ?', [examId]);
+  if (rows.length === 0) return false;
+
+  const exam = rows[0];
+  if (req.user.institute_id && exam.institute_id && req.user.institute_id === exam.institute_id) {
+    return true;
+  }
+  if (exam.created_by && exam.created_by === req.user.id) {
+    return true;
+  }
+  return false;
+}
+
+// Helper: Verify Admin ownership/permission for an Exam Section
+async function verifySectionOwnership(req, sectionId) {
+  if (!req.user) return false;
+  if (req.user.role === 'super_admin') return true;
+
+  const [rows] = await pool.query(`
+    SELECT e.institute_id, e.created_by
+    FROM exam_sections es
+    JOIN exams e ON es.exam_id = e.id
+    WHERE es.id = ?
+  `, [sectionId]);
+
+  if (rows.length === 0) return false;
+
+  const exam = rows[0];
+  if (req.user.institute_id && exam.institute_id && req.user.institute_id === exam.institute_id) {
+    return true;
+  }
+  if (exam.created_by && exam.created_by === req.user.id) {
+    return true;
+  }
+  return false;
+}
+
 // 4. Update Exam Details
 router.put('/:id', requireInstituteAdmin, async (req, res) => {
   try {
     const examId = req.params.id;
+    const isAllowed = await verifyExamOwnership(req, examId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this exam.' });
+    }
 
     // Fetch existing exam to support partial updates (e.g., publish/unpublish toggle)
     const [existing] = await pool.query('SELECT * FROM exams WHERE id = ?', [examId]);
@@ -342,6 +535,11 @@ router.put('/:id', requireInstituteAdmin, async (req, res) => {
 // 5. Delete Exam
 router.delete('/:id', requireInstituteAdmin, async (req, res) => {
   try {
+    const isAllowed = await verifyExamOwnership(req, req.params.id);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to delete this exam.' });
+    }
+
     await pool.query('DELETE FROM exams WHERE id = ?', [req.params.id]);
     res.json({ message: 'Exam deleted successfully.' });
   } catch (err) {
@@ -353,6 +551,11 @@ router.delete('/:id', requireInstituteAdmin, async (req, res) => {
 router.get('/:id/sections-questions', requireAuth, async (req, res) => {
   try {
     const examId = req.params.id;
+    const access = await verifyExamStudentAccess(req.user, examId);
+    if (!access.allowed) {
+      return res.status(access.status || 403).json({ error: access.error });
+    }
+
     const [sections] = await pool.query('SELECT * FROM exam_sections WHERE exam_id = ? ORDER BY section_order ASC', [examId]);
 
     const result = [];
@@ -420,6 +623,11 @@ router.post('/sections/:sectionId/attach-questions', requireInstituteAdmin, asyn
 router.delete('/sections/:sectionId/detach-questions/:questionId', requireInstituteAdmin, async (req, res) => {
   try {
     const { sectionId, questionId } = req.params;
+    const isAllowed = await verifySectionOwnership(req, sectionId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this exam section.' });
+    }
+
     await pool.query('DELETE FROM exam_section_questions WHERE section_id = ? AND question_id = ?', [sectionId, questionId]);
     res.json({ message: 'Question detached from exam section successfully.' });
   } catch (err) {
@@ -705,6 +913,19 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
 router.delete('/questions/:questionId', requireInstituteAdmin, async (req, res) => {
   try {
     const qId = req.params.questionId;
+    const [qRows] = await pool.query('SELECT institute_id, is_global FROM question_bank WHERE id = ?', [qId]);
+    if (qRows.length === 0) return res.status(404).json({ error: 'Question not found.' });
+
+    const q = qRows[0];
+    if (req.user.role !== 'super_admin') {
+      if (q.is_global || q.institute_id === null) {
+        return res.status(403).json({ error: 'Access denied. Only Super Admins can delete Global Master questions.' });
+      }
+      if (q.institute_id !== req.user.institute_id) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to delete this question.' });
+      }
+    }
+
     await pool.query('DELETE FROM question_bank WHERE id = ?', [qId]);
     await pool.query('DELETE FROM exam_questions WHERE id = ?', [qId]);
     res.json({ message: 'Master question deleted successfully from Question Bank.' });
@@ -1048,17 +1269,12 @@ router.post('/:id/start', requireAuth, async (req, res) => {
     const examId = req.params.id;
     const userId = req.user.id;
 
-    const [exams] = await pool.query('SELECT * FROM exams WHERE id = ?', [examId]);
-    if (exams.length === 0) return res.status(404).json({ error: 'Exam not found.' });
-
-    const exam = exams[0];
-
-    // Access Scoping Guard: Only linked institute students or public tests can be started
-    if (req.user.role === 'user') {
-      if (!exam.is_public && req.user.institute_id !== exam.institute_id) {
-        return res.status(403).json({ error: 'Access denied. This exam is private to another Coaching Institute.' });
-      }
+    const access = await verifyExamStudentAccess(req.user, examId);
+    if (!access.allowed) {
+      return res.status(access.status || 403).json({ error: access.error });
     }
+
+    const exam = access.exam;
 
     // Mode check for Actual Exam scheduling window
     if (exam.mode === 'actual' && req.user.role === 'user') {

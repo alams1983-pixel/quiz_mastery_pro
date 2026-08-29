@@ -106,6 +106,71 @@ async function verifyQuizOwnership(req, quizId) {
   return false;
 }
 
+// Helper: Verify Student/User access permission for a Quiz
+async function verifyQuizStudentAccess(user, quizId) {
+  const [rows] = await pool.query('SELECT * FROM quizzes WHERE id = ?', [quizId]);
+  if (rows.length === 0) return { allowed: false, error: 'Quiz not found.', status: 404 };
+
+  const quiz = rows[0];
+
+  // 1. Draft check
+  if (!quiz.is_published && (!user || (user.role !== 'super_admin' && user.role !== 'institute_admin' && user.id !== quiz.created_by))) {
+    return { allowed: false, error: 'This practice quiz is currently in draft mode.', status: 403 };
+  }
+
+  // 2. Super Admin or Creator
+  if (user && (user.role === 'super_admin' || user.id === quiz.created_by)) {
+    return { allowed: true, quiz };
+  }
+
+  // 3. Public Quiz check
+  if (quiz.is_public) {
+    // Check if user's institute disables global content
+    const instId = user ? (user.institute_id || 0) : 0;
+    if (instId > 0) {
+      const [insts] = await pool.query('SELECT allow_global_content FROM institutes WHERE id = ?', [instId]);
+      if (insts.length > 0 && insts[0].allow_global_content === 0 && quiz.institute_id !== instId) {
+        return { allowed: false, error: 'Global public quizzes are disabled by your coaching institute.', status: 403 };
+      }
+    }
+    return { allowed: true, quiz };
+  }
+
+  // 4. Private Institute Quiz check
+  if (!user) {
+    return { allowed: false, error: 'Sign in to access this coaching quiz.', status: 401 };
+  }
+
+  // Direct user.institute_id match if quiz is available to all batches
+  if (quiz.is_all_batches && user.institute_id && quiz.institute_id && user.institute_id === quiz.institute_id) {
+    return { allowed: true, quiz };
+  }
+
+  // Multi-Institute Memberships check if quiz is available to all batches
+  if (quiz.is_all_batches && quiz.institute_id) {
+    const [mems] = await pool.query(
+      'SELECT id FROM institute_memberships WHERE user_id = ? AND institute_id = ? AND status = "active"',
+      [user.id, quiz.institute_id]
+    );
+    if (mems.length > 0) {
+      return { allowed: true, quiz };
+    }
+  }
+
+  // Student Batches check (Must be approved)
+  const [batches] = await pool.query(`
+    SELECT qb.batch_id FROM quiz_batches qb
+    JOIN student_batches sb ON qb.batch_id = sb.batch_id
+    WHERE qb.quiz_id = ? AND sb.user_id = ? AND (sb.status = 'approved' OR sb.status IS NULL)
+  `, [quizId, user.id]);
+
+  if (batches.length > 0) {
+    return { allowed: true, quiz };
+  }
+
+  return { allowed: false, error: 'Access denied to this coaching practice quiz. Approved batch membership required.', status: 403 };
+}
+
 // 1. Get Quizzes (Scoped by role, institute, student batch, and publication status)
 router.get('/', optionalAuth, async (req, res) => {
   try {
@@ -130,18 +195,27 @@ router.get('/', optionalAuth, async (req, res) => {
 
     // Multitenant & Role Scoping
     if (!user || user.role === 'user') {
+      let allowGlobal = 1;
+      const instId = user ? (user.institute_id || 0) : 0;
+      if (instId > 0) {
+        const [instInfo] = await pool.query('SELECT allow_global_content FROM institutes WHERE id = ?', [instId]);
+        if (instInfo.length > 0 && instInfo[0].allow_global_content === 0) {
+          allowGlobal = 0;
+        }
+      }
+
       sql += ` AND q.is_published = 1 AND (
-        q.is_public = 1 OR (
+        (q.is_public = 1 AND ${allowGlobal === 1 ? '1=1' : '1=0'}) OR (
           q.institute_id = ? AND (
             q.is_all_batches = 1 OR q.id IN (
               SELECT qb_sub.quiz_id FROM quiz_batches qb_sub
               JOIN student_batches sb_sub ON qb_sub.batch_id = sb_sub.batch_id
-              WHERE sb_sub.user_id = ?
+              WHERE sb_sub.user_id = ? AND (sb_sub.status = 'approved' OR sb_sub.status IS NULL)
             )
           )
         )
       )`;
-      params.push(user ? (user.institute_id || -1) : -1, user ? user.id : -1);
+      params.push(instId, user ? user.id : -1);
     } else if (user.role === 'institute_admin' || user.role === 'admin') {
       sql += ` AND (q.institute_id = ? OR q.is_public = 1)`;
       params.push(user.institute_id || -1);
@@ -174,6 +248,11 @@ router.get('/', optionalAuth, async (req, res) => {
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const quizId = req.params.id;
+    const access = await verifyQuizStudentAccess(req.user, quizId);
+    if (!access.allowed) {
+      return res.status(access.status || 403).json({ error: access.error });
+    }
+
     const [quizzes] = await pool.query(`
       SELECT q.*, c.name as category_name,
              GROUP_CONCAT(DISTINCT qb.batch_id) as batch_ids
@@ -184,26 +263,11 @@ router.get('/:id', optionalAuth, async (req, res) => {
       GROUP BY q.id
     `, [quizId]);
 
-    if (quizzes.length === 0) {
-      return res.status(404).json({ error: 'Quiz not found.' });
-    }
-
     const quiz = quizzes[0];
-    const user = req.user;
-
-    // Check student view permissions for private/draft quizzes
-    if (!user || user.role === 'user') {
-      if (!quiz.is_published) {
-        return res.status(403).json({ error: 'This practice quiz is currently in draft mode.' });
-      }
-      if (!quiz.is_public && quiz.institute_id !== (user?.institute_id || -1)) {
-        return res.status(403).json({ error: 'Access denied to private quiz.' });
-      }
-    }
-
     const [questions] = await pool.query('SELECT COUNT(*) as total FROM questions WHERE quiz_id = ?', [quizId]);
     res.json({ quiz, questionCount: questions[0].total });
   } catch (err) {
+    console.error('Fetch Quiz Error:', err);
     res.status(500).json({ error: 'Error fetching quiz details.' });
   }
 });
@@ -212,23 +276,9 @@ router.get('/:id', optionalAuth, async (req, res) => {
 router.get('/:id/questions', optionalAuth, async (req, res) => {
   try {
     const quizId = req.params.id;
-
-    // Verify Quiz Access
-    const [quizzes] = await pool.query('SELECT is_published, is_public, institute_id FROM quizzes WHERE id = ?', [quizId]);
-    if (quizzes.length === 0) {
-      return res.status(404).json({ error: 'Quiz not found.' });
-    }
-
-    const quiz = quizzes[0];
-    const user = req.user;
-
-    if (!user || user.role === 'user') {
-      if (!quiz.is_published) {
-        return res.status(403).json({ error: 'This practice quiz is currently draft and unpublished.' });
-      }
-      if (!quiz.is_public && quiz.institute_id !== (user?.institute_id || -1)) {
-        return res.status(403).json({ error: 'Access denied to private quiz.' });
-      }
+    const access = await verifyQuizStudentAccess(req.user, quizId);
+    if (!access.allowed) {
+      return res.status(access.status || 403).json({ error: access.error });
     }
 
     const [questions] = await pool.query('SELECT * FROM questions WHERE quiz_id = ? ORDER BY id ASC', [quizId]);

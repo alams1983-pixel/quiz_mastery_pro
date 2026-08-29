@@ -91,6 +91,42 @@ export function renderInstituteAdminView(navigate) {
 
     <!-- Tab 2: Batches & Classes -->
     <div id="section-inst-batches" style="display: none;">
+      
+      <!-- Pending Student Join Requests Card -->
+      <div class="card" style="padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--warning, #f59e0b);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">
+              ⏳ Pending Student Batch Join Requests
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">
+              Review and approve student requests to join specific classes and target batches.
+            </p>
+          </div>
+          <span id="pending-requests-count-badge" class="badge" style="background: rgba(245, 158, 11, 0.15); color: #d97706; font-weight: 700; font-size: 0.85rem; padding: 4px 10px; border-radius: 20px;">
+            0 Pending
+          </span>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="custom-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>Email</th>
+                <th>Requested Batch</th>
+                <th>Requested Date</th>
+                <th>Action Controls</th>
+              </tr>
+            </thead>
+            <tbody id="pending-requests-table-body">
+              <tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading pending requests...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Existing Batches List -->
       <div class="card" style="padding: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
           <div>
@@ -309,18 +345,55 @@ async function loadInstituteAdminData(container) {
       return;
     }
 
-    const [examsRes, studentsRes, quizzesRes, catRes, tagRes, batchesRes] = await Promise.all([
+    const [examsRes, studentsRes, quizzesRes, catRes, tagRes, batchesRes, instRes] = await Promise.all([
       apiRequest('/exams'),
       user.institute_id ? apiRequest(`/institutes/${user.institute_id}/students`) : Promise.resolve({ students: [] }),
       apiRequest('/quizzes'),
       apiRequest('/categories').catch(() => ({ flatCategories: [] })),
       apiRequest('/tags').catch(() => ({ tags: [] })),
-      apiRequest('/exams/batches/all').catch(() => ({ batches: [] }))
+      apiRequest('/exams/batches/all').catch(() => ({ batches: [] })),
+      user.institute_id ? apiRequest(`/institutes/${user.institute_id}`).catch(() => null) : Promise.resolve(null)
     ]);
 
     cachedExams = examsRes.exams || [];
     cachedStudents = studentsRes.students || [];
     cachedBatches = batchesRes.batches || [];
+
+    // Populate Branding & URLs if institute data returned
+    if (instRes && instRes.institute) {
+      const inst = instRes.institute;
+      const origin = window.location.origin;
+      const port = window.location.port ? `:${window.location.port}` : '';
+      const slugOrCode = inst.slug || inst.code;
+
+      const subUrl = `http://${slugOrCode}.localhost${port}`;
+      const fallbackUrl = `${origin}/?institute=${slugOrCode}`;
+
+      const subInput = container.querySelector('#branding-subdomain-url');
+      const fallbackInput = container.querySelector('#branding-fallback-url');
+      if (subInput) subInput.value = subUrl;
+      if (fallbackInput) fallbackInput.value = fallbackUrl;
+
+      const nameInput = container.querySelector('#brand-name');
+      const slugInput = container.querySelector('#brand-slug');
+      const logoInput = container.querySelector('#brand-logo');
+      const colorInput = container.querySelector('#brand-color');
+      const colorPicker = container.querySelector('#brand-color-picker');
+      const titleInput = container.querySelector('#brand-title');
+      const subtitleInput = container.querySelector('#brand-subtitle');
+      const bannerInput = container.querySelector('#brand-banner');
+      const allowGlobalCheck = container.querySelector('#brand-allow-global');
+
+      if (nameInput) nameInput.value = inst.name || '';
+      if (slugInput) slugInput.value = inst.slug || '';
+      if (logoInput) logoInput.value = inst.logo_url || '';
+      if (colorInput) colorInput.value = inst.primary_color || '#4f46e5';
+      if (colorPicker) colorPicker.value = inst.primary_color || '#4f46e5';
+      if (titleInput) titleInput.value = inst.welcome_title || '';
+      if (subtitleInput) subtitleInput.value = inst.welcome_subtitle || '';
+      if (bannerInput) bannerInput.value = inst.banner_url || '';
+      if (allowGlobalCheck) allowGlobalCheck.checked = inst.allow_global_content !== 0;
+    }
 
     // Populate category dropdown with Optgroups (Global Master vs Institute Private)
     const catSelect = container.querySelector('#exam-category-id');
@@ -417,8 +490,88 @@ async function loadInstituteAdminData(container) {
     renderExamsTable(container, cachedExams);
     renderBatchesTable(container, cachedBatches);
     renderStudentsTable(container, cachedStudents);
+    loadPendingBatchRequests(container);
   } catch (err) {
     console.error('Failed to load institute admin data:', err);
+  }
+}
+
+async function loadPendingBatchRequests(container) {
+  const tbody = container.querySelector('#pending-requests-table-body');
+  const countBadge = container.querySelector('#pending-requests-count-badge');
+  if (!tbody) return;
+
+  try {
+    const res = await apiRequest('/exams/batches/pending-requests');
+    const requests = res.requests || [];
+
+    if (countBadge) countBadge.textContent = `${requests.length} Pending`;
+
+    if (requests.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">No pending student batch join requests.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = requests.map(r => `
+      <tr>
+        <td style="font-weight: 700; color: var(--text-main);">${r.student_name}</td>
+        <td>${r.student_email}</td>
+        <td>
+          <span class="badge-tag" style="background: rgba(79, 70, 229, 0.1); color: var(--primary); font-weight: 700;">
+            ${r.batch_name} ${r.batch_code ? `(${r.batch_code})` : ''}
+          </span>
+        </td>
+        <td>${new Date(r.created_at).toLocaleDateString()}</td>
+        <td>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-success btn-approve-batch-req" data-uid="${r.user_id}" data-bid="${r.batch_id}" style="padding: 4px 10px; font-weight: 700;">
+              ✓ Approve
+            </button>
+            <button class="btn btn-sm btn-secondary btn-reject-batch-req" data-uid="${r.user_id}" data-bid="${r.batch_id}" style="padding: 4px 10px; color: #ef4444;">
+              ✕ Reject
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    tbody.querySelectorAll('.btn-approve-batch-req').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Approving...';
+        try {
+          await apiRequest('/exams/batches/approve-request', {
+            method: 'POST',
+            body: JSON.stringify({ user_id: btn.dataset.uid, batch_id: btn.dataset.bid, action: 'approve' })
+          });
+          loadInstituteAdminData(container);
+        } catch (e) {
+          alert('Error approving request: ' + e.message);
+          btn.disabled = false;
+        }
+      });
+    });
+
+    tbody.querySelectorAll('.btn-reject-batch-req').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Rejecting...';
+        try {
+          await apiRequest('/exams/batches/approve-request', {
+            method: 'POST',
+            body: JSON.stringify({ user_id: btn.dataset.uid, batch_id: btn.dataset.bid, action: 'reject' })
+          });
+          loadInstituteAdminData(container);
+        } catch (e) {
+          alert('Error rejecting request: ' + e.message);
+          btn.disabled = false;
+        }
+      });
+    });
+
+  } catch (err) {
+    console.error('Error loading pending batch requests:', err);
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #ef4444;">Failed to load pending requests.</td></tr>';
   }
 }
 
@@ -598,20 +751,22 @@ function setupInstituteAdminEvents(container) {
   const tabExams = container.querySelector('#tab-inst-exams');
   const tabBatches = container.querySelector('#tab-inst-batches');
   const tabStud = container.querySelector('#tab-inst-students');
+  const tabBranding = container.querySelector('#tab-inst-branding');
 
   const secExams = container.querySelector('#section-inst-exams');
   const secBatches = container.querySelector('#section-inst-batches');
   const secStud = container.querySelector('#section-inst-students');
+  const secBranding = container.querySelector('#section-inst-branding');
 
   const switchTab = (activeBtn, showSec) => {
-    [tabExams, tabBatches, tabStud].forEach(b => {
+    [tabExams, tabBatches, tabStud, tabBranding].forEach(b => {
       if (b) {
         b.classList.remove('active');
         b.style.borderBottom = 'none';
         b.style.color = 'var(--text-muted)';
       }
     });
-    [secExams, secBatches, secStud].forEach(s => { if (s) s.style.display = 'none'; });
+    [secExams, secBatches, secStud, secBranding].forEach(s => { if (s) s.style.display = 'none'; });
 
     if (activeBtn && showSec) {
       activeBtn.classList.add('active');
@@ -621,9 +776,84 @@ function setupInstituteAdminEvents(container) {
     }
   };
 
-  tabExams.addEventListener('click', () => switchTab(tabExams, secExams));
+  if (tabExams) tabExams.addEventListener('click', () => switchTab(tabExams, secExams));
   if (tabBatches) tabBatches.addEventListener('click', () => switchTab(tabBatches, secBatches));
-  tabStud.addEventListener('click', () => switchTab(tabStud, secStud));
+  if (tabStud) tabStud.addEventListener('click', () => switchTab(tabStud, secStud));
+  if (tabBranding) tabBranding.addEventListener('click', () => switchTab(tabBranding, secBranding));
+
+  // Copy Subdomain & Fallback Link handlers
+  const btnCopySub = container.querySelector('#btn-copy-subdomain');
+  const btnCopyFallback = container.querySelector('#btn-copy-fallback');
+  const subInput = container.querySelector('#branding-subdomain-url');
+  const fallbackInput = container.querySelector('#branding-fallback-url');
+
+  if (btnCopySub && subInput) {
+    btnCopySub.addEventListener('click', () => {
+      navigator.clipboard.writeText(subInput.value);
+      btnCopySub.textContent = 'Copied! ✓';
+      setTimeout(() => btnCopySub.textContent = 'Copy', 2000);
+    });
+  }
+
+  if (btnCopyFallback && fallbackInput) {
+    btnCopyFallback.addEventListener('click', () => {
+      navigator.clipboard.writeText(fallbackInput.value);
+      btnCopyFallback.textContent = 'Copied! ✓';
+      setTimeout(() => btnCopyFallback.textContent = 'Copy', 2000);
+    });
+  }
+
+  // Color picker sync
+  const colorPicker = container.querySelector('#brand-color-picker');
+  const colorInput = container.querySelector('#brand-color');
+  if (colorPicker && colorInput) {
+    colorPicker.addEventListener('input', (e) => colorInput.value = e.target.value);
+    colorInput.addEventListener('input', (e) => colorPicker.value = e.target.value);
+  }
+
+  // Branding Form submit
+  const formBranding = container.querySelector('#form-branding');
+  if (formBranding) {
+    formBranding.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const saveBtn = container.querySelector('#btn-save-branding');
+      try {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving Branding...';
+
+        const payload = {
+          name: container.querySelector('#brand-name').value,
+          slug: container.querySelector('#brand-slug').value,
+          logo_url: container.querySelector('#brand-logo').value,
+          primary_color: container.querySelector('#brand-color').value,
+          welcome_title: container.querySelector('#brand-title').value,
+          welcome_subtitle: container.querySelector('#brand-subtitle').value,
+          banner_url: container.querySelector('#brand-banner').value,
+          allow_global_content: container.querySelector('#brand-allow-global').checked
+        };
+
+        const res = await apiRequest('/institutes/my-branding', {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+
+        alert('✅ Portal branding saved successfully!');
+        if (res.institute) {
+          container.querySelector('#brand-slug').value = res.institute.slug;
+          const origin = window.location.origin;
+          const port = window.location.port ? `:${window.location.port}` : '';
+          const slugOrCode = res.institute.slug || res.institute.code;
+          if (subInput) subInput.value = `http://${slugOrCode}.localhost${port}`;
+          if (fallbackInput) fallbackInput.value = `${origin}/?institute=${slugOrCode}`;
+        }
+      } catch (err) {
+        alert(err.message || 'Error saving portal branding.');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 Save Portal Branding';
+      }
+    });
+  }
 
   // Batch Allocation Radios in Modal
   const batchRadios = container.querySelectorAll('input[name="batch_allocation_mode"]');
@@ -693,98 +923,142 @@ function setupInstituteAdminEvents(container) {
   }
 
   // Modal handlers
-  const modal = container.querySelector('#modal-create-exam');
-  const btnCreate = container.querySelector('#btn-create-exam');
-  const btnClose = container.querySelector('#close-modal-exam');
-  const btnCancel = container.querySelector('#cancel-modal-exam');
-  const form = container.querySelector('#form-create-exam');
-
   const openModal = () => {
-    container.querySelector('#modal-exam-heading').textContent = 'Create Online CBT Exam';
-    container.querySelector('#edit-exam-id').value = '';
-    container.querySelector('#submit-modal-exam').textContent = 'Create Exam';
-    form.reset();
-    if (batchChecklist) batchChecklist.style.display = 'none';
-    modal.style.display = 'flex';
+    let currentModal = document.querySelector('#modal-create-exam') || container.querySelector('#modal-create-exam');
+    if (!currentModal) return;
+
+    if (!document.body.contains(currentModal)) {
+      document.body.appendChild(currentModal);
+    }
+
+    const heading = currentModal.querySelector('#modal-exam-heading');
+    const editId = currentModal.querySelector('#edit-exam-id');
+    const submitBtn = currentModal.querySelector('#submit-modal-exam');
+    const currentForm = currentModal.querySelector('#form-create-exam');
+    const currentBatchChecklist = currentModal.querySelector('#exam-batch-checklist');
+
+    if (heading) heading.textContent = 'Create Online CBT Exam';
+    if (editId) editId.value = '';
+    if (submitBtn) submitBtn.textContent = 'Create Exam';
+    if (currentForm) currentForm.reset();
+    if (currentBatchChecklist) currentBatchChecklist.style.display = 'none';
+
+    currentModal.style.display = 'flex';
+    currentModal.style.position = 'fixed';
+    currentModal.style.inset = '0';
+    currentModal.style.zIndex = '99999';
+    currentModal.style.background = 'rgba(15, 23, 42, 0.75)';
+    currentModal.style.backdropFilter = 'blur(4px)';
+    currentModal.style.alignItems = 'center';
+    currentModal.style.justifyContent = 'center';
   };
 
   const closeModal = () => {
-    modal.style.display = 'none';
-    form.reset();
+    const currentModal = document.querySelector('#modal-create-exam') || container.querySelector('#modal-create-exam');
+    if (!currentModal) return;
+    const currentForm = currentModal.querySelector('#form-create-exam');
+    currentModal.style.display = 'none';
+    if (currentForm) currentForm.reset();
   };
 
-  btnCreate.addEventListener('click', openModal);
-  btnClose.addEventListener('click', closeModal);
-  btnCancel.addEventListener('click', closeModal);
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const editId = container.querySelector('#edit-exam-id').value;
-    const visVal = container.querySelector('#exam-visibility') ? container.querySelector('#exam-visibility').value : 'private';
-    const catSelectEl = container.querySelector('#exam-category-id');
-    const selectedCatOpt = catSelectEl ? catSelectEl.options[catSelectEl.selectedIndex] : null;
-
-    if (visVal === 'public' && selectedCatOpt && selectedCatOpt.dataset.type === 'private') {
-      alert('To publish a Global Open Test, you must select a Global Master Category (created by Super Admin). Private categories cannot be used for global tests.');
-      return;
+  // Delegate click for Create Exam button across document & container
+  const handleCreateExamClick = (e) => {
+    const targetBtn = e.target.closest('#btn-create-exam, .btn-open-create-exam');
+    if (targetBtn) {
+      e.preventDefault();
+      openModal();
     }
+  };
 
-    const selectedTagIds = Array.from(container.querySelectorAll('.exam-tag-cb:checked')).map(cb => parseInt(cb.value, 10));
+  container.removeEventListener('click', handleCreateExamClick);
+  container.addEventListener('click', handleCreateExamClick);
 
-    const allocMode = container.querySelector('input[name="batch_allocation_mode"]:checked')?.value || 'all';
-    const isAllBatches = allocMode === 'all';
-    const selectedBatchIds = isAllBatches ? [] : Array.from(container.querySelectorAll('.exam-batch-cb:checked')).map(cb => parseInt(cb.value, 10));
+  // Close handlers
+  const currentModalEl = document.querySelector('#modal-create-exam') || container.querySelector('#modal-create-exam');
+  if (currentModalEl) {
+    const btnClose = currentModalEl.querySelector('#close-modal-exam');
+    const btnCancel = currentModalEl.querySelector('#cancel-modal-exam');
+    if (btnClose) btnClose.addEventListener('click', closeModal);
+    if (btnCancel) btnCancel.addEventListener('click', closeModal);
 
-    const payload = {
-      title: container.querySelector('#exam-title').value.trim(),
-      category_id: container.querySelector('#exam-category-id').value ? parseInt(container.querySelector('#exam-category-id').value, 10) : null,
-      exam_type: container.querySelector('#exam-type').value,
-      mode: container.querySelector('#exam-mode').value || 'actual',
-      is_public: visVal === 'public',
-      total_duration_mins: parseInt(container.querySelector('#exam-duration').value, 10),
-      positive_marks: parseFloat(container.querySelector('#exam-pos').value),
-      negative_marks: parseFloat(container.querySelector('#exam-neg').value),
-      instructions: container.querySelector('#exam-instructions').value.trim() || null,
-      tag_ids: selectedTagIds,
-      is_all_batches: isAllBatches,
-      batch_ids: selectedBatchIds,
-      scheduled_start: container.querySelector('#exam-start').value || null,
-      scheduled_end: container.querySelector('#exam-end').value || null
-    };
+    currentModalEl.addEventListener('click', (e) => {
+      if (e.target === currentModalEl) closeModal();
+    });
 
-    try {
-      if (editId) {
-        await apiRequest(`/exams/${editId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload)
-        });
-        alert(`Exam "${payload.title}" updated successfully!`);
-      } else {
-        await apiRequest('/exams', {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-        alert(`Online Exam "${payload.title}" created successfully!`);
+    const form = currentModalEl.querySelector('#form-create-exam');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const editId = currentModalEl.querySelector('#edit-exam-id')?.value || '';
+        const visVal = currentModalEl.querySelector('#exam-visibility') ? currentModalEl.querySelector('#exam-visibility').value : 'private';
+        const catSelectEl = currentModalEl.querySelector('#exam-category-id');
+        const selectedCatOpt = catSelectEl && catSelectEl.selectedIndex >= 0 ? catSelectEl.options[catSelectEl.selectedIndex] : null;
+
+        if (visVal === 'public' && selectedCatOpt && selectedCatOpt.dataset?.type === 'private') {
+          alert('To publish a Global Open Test, you must select a Global Master Category (created by Super Admin). Private categories cannot be used for global tests.');
+          return;
+        }
+
+        const selectedTagIds = Array.from(currentModalEl.querySelectorAll('.exam-tag-cb:checked')).map(cb => parseInt(cb.value, 10));
+        const allocMode = currentModalEl.querySelector('input[name="batch_allocation_mode"]:checked')?.value || 'all';
+        const isAllBatches = allocMode === 'all';
+        const selectedBatchIds = isAllBatches ? [] : Array.from(currentModalEl.querySelectorAll('.exam-batch-cb:checked')).map(cb => parseInt(cb.value, 10));
+
+        const payload = {
+          title: currentModalEl.querySelector('#exam-title').value.trim(),
+          category_id: currentModalEl.querySelector('#exam-category-id').value ? parseInt(currentModalEl.querySelector('#exam-category-id').value, 10) : null,
+          exam_type: currentModalEl.querySelector('#exam-type').value,
+          mode: currentModalEl.querySelector('#exam-mode').value || 'actual',
+          is_public: visVal === 'public',
+          total_duration_mins: parseInt(currentModalEl.querySelector('#exam-duration').value, 10),
+          positive_marks: parseFloat(currentModalEl.querySelector('#exam-pos').value),
+          negative_marks: parseFloat(currentModalEl.querySelector('#exam-neg').value),
+          instructions: currentModalEl.querySelector('#exam-instructions').value.trim() || null,
+          tag_ids: selectedTagIds,
+          is_all_batches: isAllBatches,
+          batch_ids: selectedBatchIds,
+          scheduled_start: currentModalEl.querySelector('#exam-start').value || null,
+          scheduled_end: currentModalEl.querySelector('#exam-end').value || null
+        };
+
+        try {
+          if (editId) {
+            await apiRequest(`/exams/${editId}`, {
+              method: 'PUT',
+              body: JSON.stringify(payload)
+            });
+            alert(`Exam "${payload.title}" updated successfully!`);
+          } else {
+            await apiRequest('/exams', {
+              method: 'POST',
+              body: JSON.stringify(payload)
+            });
+            alert(`Online Exam "${payload.title}" created successfully!`);
+          }
+          closeModal();
+          loadInstituteAdminData(container);
+        } catch (err) {
+          alert(`Error saving exam: ${err.message}`);
+        }
+      });
+    }
+  }
+
+  const btnCopyCode = container.querySelector('#btn-copy-code');
+  if (btnCopyCode) {
+    btnCopyCode.addEventListener('click', async () => {
+      try {
+        const userRes = await apiRequest('/auth/me');
+        const code = userRes.user.institute_code;
+        if (code) {
+          await navigator.clipboard.writeText(code);
+          alert(`Institute Code "${code}" copied to clipboard! Share this code with your students.`);
+        }
+      } catch (e) {
+        alert('Failed to copy code.');
       }
-      closeModal();
-      loadInstituteAdminData(container);
-    } catch (err) {
-      alert(`Error saving exam: ${err.message}`);
-    }
-  });
-
-  container.querySelector('#btn-copy-code').addEventListener('click', async () => {
-    try {
-      const userRes = await apiRequest('/auth/me');
-      const code = userRes.user.institute_code;
-      if (code) {
-        await navigator.clipboard.writeText(code);
-        alert(`Institute Code "${code}" copied to clipboard! Share this code with your students.`);
-      }
-    } catch (e) {
-      alert('Failed to copy code.');
-    }
-  });
+    });
+  }
 }
 
 async function openExamSectionManagerModal(container, exam) {

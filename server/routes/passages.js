@@ -49,6 +49,14 @@ router.put('/:id', requireInstituteAdmin, async (req, res) => {
     const passageId = req.params.id;
     const { passage_text_en, passage_text_hi } = req.body;
 
+    const [existing] = await pool.query('SELECT institute_id, created_by FROM passages WHERE id = ?', [passageId]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Passage not found.' });
+
+    const passage = existing[0];
+    if (req.user.role !== 'super_admin' && passage.institute_id !== req.user.institute_id && passage.created_by !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this passage.' });
+    }
+
     await pool.query(
       'UPDATE passages SET passage_text_en = ?, passage_text_hi = ? WHERE id = ?',
       [passage_text_en, passage_text_hi || '', passageId]
@@ -63,7 +71,16 @@ router.put('/:id', requireInstituteAdmin, async (req, res) => {
 // 4. Delete Passage
 router.delete('/:id', requireInstituteAdmin, async (req, res) => {
   try {
-    await pool.query('DELETE FROM passages WHERE id = ?', [req.params.id]);
+    const passageId = req.params.id;
+    const [existing] = await pool.query('SELECT institute_id, created_by FROM passages WHERE id = ?', [passageId]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Passage not found.' });
+
+    const passage = existing[0];
+    if (req.user.role !== 'super_admin' && passage.institute_id !== req.user.institute_id && passage.created_by !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to delete this passage.' });
+    }
+
+    await pool.query('DELETE FROM passages WHERE id = ?', [passageId]);
     res.json({ message: 'Passage deleted.' });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting passage.' });

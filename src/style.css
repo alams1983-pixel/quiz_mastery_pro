@@ -2539,3 +2539,111 @@ body {
     margin-right: 12px;
   }
 }
+
+/* ═════════════════════════════════════════════════════════════════
+   RESPONSIVE SETTINGS & PORTAL PAGE SYSTEM
+   ═════════════════════════════════════════════════════════════════ */
+
+.settings-grid,
+.responsive-grid-2col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 899px) {
+  .settings-grid,
+  .responsive-grid-2col {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.responsive-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 640px) {
+  .responsive-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .responsive-page-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .responsive-page-header h1 {
+    font-size: 1.45rem !important;
+  }
+}
+
+.copy-url-group {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+@media (max-width: 520px) {
+  .copy-url-group {
+    flex-direction: column;
+  }
+
+  .copy-url-group input,
+  .copy-url-group button {
+    width: 100%;
+  }
+}
+
+/* Mobile Portal / Auth Card Responsive Improvements */
+.auth-card {
+  max-width: 460px;
+  width: 100%;
+  padding: 28px 24px;
+  border-radius: var(--radius-lg, 16px);
+  background: var(--card-bg, #ffffff);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 20px 16px !important;
+    border-radius: var(--radius-md, 12px) !important;
+  }
+
+  .auth-card h1 {
+    font-size: 1.4rem !important;
+  }
+
+  .auth-segmented-tab {
+    display: flex;
+    width: 100%;
+  }
+
+  .auth-tab-btn {
+    padding: 10px 8px !important;
+    font-size: 0.85rem !important;
+  }
+}
+
+/* Mobile Form Inputs Prevent Auto-Zoom */
+@media (max-width: 768px) {
+  .form-control,
+  .form-input,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  select,
+  textarea {
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+}

@@ -50,7 +50,23 @@ router.post('/', requireAdmin, async (req, res) => {
 // 3. Delete Tag (Admin)
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    await pool.query('DELETE FROM tags WHERE id = ?', [req.params.id]);
+    const tagId = req.params.id;
+    const [existing] = await pool.query('SELECT * FROM tags WHERE id = ?', [tagId]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Tag not found.' });
+
+    const tag = existing[0];
+    const isGlobal = !tag.institute_id || tag.is_global;
+
+    if (req.user.role !== 'super_admin') {
+      if (isGlobal) {
+        return res.status(403).json({ error: 'Access denied. Only Super Admins can delete Global Master Tags.' });
+      }
+      if (tag.institute_id !== req.user.institute_id) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to delete tags belonging to another institute.' });
+      }
+    }
+
+    await pool.query('DELETE FROM tags WHERE id = ?', [tagId]);
     res.json({ message: 'Tag deleted.' });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting tag.' });

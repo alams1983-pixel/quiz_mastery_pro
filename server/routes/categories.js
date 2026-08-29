@@ -105,6 +105,15 @@ router.put('/:id', requireAdmin, async (req, res) => {
     const currentCat = existing[0];
     const isGlobal = !currentCat.institute_id || currentCat.is_global;
 
+    if (req.user.role !== 'super_admin') {
+      if (isGlobal) {
+        return res.status(403).json({ error: 'Access denied. Only Super Admins can modify Global Master Categories.' });
+      }
+      if (currentCat.institute_id !== req.user.institute_id) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to modify categories belonging to another institute.' });
+      }
+    }
+
     if (parent_id) {
       const [parents] = await pool.query('SELECT id, institute_id, is_global FROM categories WHERE id = ?', [parent_id]);
       if (parents.length === 0) return res.status(400).json({ error: 'Selected parent category does not exist.' });
@@ -140,6 +149,21 @@ router.put('/:id', requireAdmin, async (req, res) => {
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const catId = req.params.id;
+    const [existing] = await pool.query('SELECT * FROM categories WHERE id = ?', [catId]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Category not found.' });
+
+    const currentCat = existing[0];
+    const isGlobal = !currentCat.institute_id || currentCat.is_global;
+
+    if (req.user.role !== 'super_admin') {
+      if (isGlobal) {
+        return res.status(403).json({ error: 'Access denied. Only Super Admins can delete Global Master Categories.' });
+      }
+      if (currentCat.institute_id !== req.user.institute_id) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to delete categories belonging to another institute.' });
+      }
+    }
+
     await pool.query('DELETE FROM categories WHERE id = ?', [catId]);
     res.json({ message: 'Category deleted.' });
   } catch (err) {

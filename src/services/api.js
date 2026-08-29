@@ -1,19 +1,35 @@
 const API_BASE = '/api';
 
+/**
+ * Retrieve active JWT token from localStorage
+ * @returns {string|null}
+ */
 export function getToken() {
   return localStorage.getItem('token');
 }
 
+/**
+ * Store or remove JWT token in localStorage
+ * @param {string|null} token 
+ */
 export function setToken(token) {
   if (token) localStorage.setItem('token', token);
   else localStorage.removeItem('token');
 }
 
+/**
+ * Retrieve authenticated user object from localStorage
+ * @returns {Object|null}
+ */
 export function getUser() {
   const user = localStorage.getItem('user');
   return user ? JSON.parse(user) : null;
 }
 
+/**
+ * Store or remove user object in localStorage
+ * @param {Object|null} user 
+ */
 export function setUser(user) {
   if (user) localStorage.setItem('user', JSON.stringify(user));
   else localStorage.removeItem('user');
@@ -100,6 +116,7 @@ export const api = {
   // Auth
   register: (body) => request('/auth/register', { method: 'POST', body }),
   login: (body) => request('/auth/login', { method: 'POST', body }),
+  firebaseLogin: (body) => request('/auth/firebase-login', { method: 'POST', body }),
   getMe: () => request('/auth/me'),
   forgotPassword: (body) => request('/auth/forgot-password', { method: 'POST', body }),
   resetPassword: (body) => request('/auth/reset-password', { method: 'POST', body }),
@@ -163,9 +180,11 @@ export const api = {
   getQuestions: async (quizId) => {
     const cacheKey = `questions_${quizId}`;
     const cached = cache.get(cacheKey);
-    if (cached) return cached;
+    if (cached && Array.isArray(cached.questions) && cached.questions.length > 0) return cached;
     const res = await request(`/quizzes/${quizId}/questions`);
-    cache.set(cacheKey, res, 300000); // 5 min TTL
+    if (res && Array.isArray(res.questions) && res.questions.length > 0) {
+      cache.set(cacheKey, res, 300000); // 5 min TTL
+    }
     return res;
   },
   createQuiz: async (body) => {
