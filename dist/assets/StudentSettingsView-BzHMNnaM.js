@@ -1,4 +1,4 @@
-import{g as f}from"./index-BJvuVE6r.js";function h(d){const t=document.createElement("div");t.className="container page-view",t.style.maxWidth="1000px",t.style.padding="2rem 1rem";const r=f();if(!r)return d("login"),t;t.innerHTML=`
+import{g as f}from"./index-Dj_OHbJk.js";function h(d){const t=document.createElement("div");t.className="container page-view",t.style.maxWidth="1000px",t.style.padding="2rem 1rem";const r=f();if(!r)return d("login"),t;t.innerHTML=`
     <!-- Page Header -->
     <div class="responsive-page-header">
       <div>
@@ -40,26 +40,28 @@ import{g as f}from"./index-BJvuVE6r.js";function h(d){const t=document.createEle
           </div>
         `:""}
 
-        <!-- Institute Batches & Class Enrollments Card -->
-        <div class="card" style="padding: 1.5rem; border-radius: 12px; background: var(--card-bg, #ffffff); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid var(--border-color, #e5e7eb);">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-color, #111827); margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-              📚 Class & Batch Memberships
-            </h3>
-            <span style="font-size: 0.8rem; background: rgba(16, 185, 129, 0.1); color: #059669; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: 600;">
-              Teacher Approval
-            </span>
-          </div>
-          <p style="font-size: 0.85rem; color: var(--muted-text, #6b7280); margin-bottom: 1.25rem;">
-            Join batches created by your coaching institute to gain access to batch-specific CBT exams and tests.
-          </p>
+        ${!r||r.role==="user"?`
+          <!-- Institute Batches & Class Enrollments Card (Students Only) -->
+          <div class="card" style="padding: 1.5rem; border-radius: 12px; background: var(--card-bg, #ffffff); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid var(--border-color, #e5e7eb);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+              <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-color, #111827); margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                📚 Class & Batch Memberships
+              </h3>
+              <span style="font-size: 0.8rem; background: rgba(16, 185, 129, 0.1); color: #059669; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: 600;">
+                Teacher Approval
+              </span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--muted-text, #6b7280); margin-bottom: 1.25rem;">
+              Join batches created by your coaching institute to gain access to batch-specific CBT exams and tests.
+            </p>
 
-          <div id="studentBatchesListContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
-            <div style="text-align: center; padding: 1.5rem; color: var(--muted-text, #9ca3af);">
-              Loading institute batches...
+            <div id="studentBatchesListContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <div style="text-align: center; padding: 1.5rem; color: var(--muted-text, #9ca3af);">
+                Loading institute batches...
+              </div>
             </div>
           </div>
-        </div>
+        `:""}
 
       </div>
 
