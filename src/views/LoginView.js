@@ -1,5 +1,5 @@
 import { api, setToken, setUser } from '../services/api.js';
-import { getTenantFromURL, fetchTenantBranding, applyTenantTheme, setActiveInstitute } from '../services/tenant.js';
+import { getTenantFromURL, fetchTenantBranding, applyTenantTheme } from '../services/tenant.js';
 import { renderEnrollmentModal } from '../components/EnrollmentModal.js';
 import {
   loginWithEmailPassword,
@@ -219,7 +219,6 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
             },
             body: JSON.stringify({ institute_id: data.target_institute.id })
           });
-          setActiveInstitute(data.target_institute);
           window.location.reload();
         },
         onCancel: () => {}
@@ -229,10 +228,6 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
 
     setToken(data.token);
     setUser(data.user);
-
-    if (currentBranding) {
-      setActiveInstitute(currentBranding);
-    }
 
     redirectUserByRole(data.user);
   };
@@ -245,7 +240,6 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
       if (branding) {
         currentBranding = branding;
         applyTenantTheme(branding);
-        setActiveInstitute(branding);
 
         const logoWrapper = container.querySelector('#authLogoWrapper');
         const authTitle = container.querySelector('#authTitle');

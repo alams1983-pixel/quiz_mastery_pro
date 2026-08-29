@@ -2,8 +2,6 @@
  * Tenant Resolution & Context Management Service
  */
 
-// Key for stored active tenant
-const ACTIVE_TENANT_KEY = 'edutor_active_tenant';
 
 /**
  * Extracts institute slug/code from URL subdomain or query parameters.
@@ -86,24 +84,4 @@ export function applyTenantTheme(institute) {
   }
 }
 
-/**
- * Local Storage Active Tenant Management for Logged-In Students
- */
-export function getActiveInstitute() {
-  try {
-    const raw = localStorage.getItem(ACTIVE_TENANT_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
-    return null;
-  }
-}
 
-export function setActiveInstitute(institute) {
-  if (!institute) {
-    localStorage.removeItem(ACTIVE_TENANT_KEY);
-    applyTenantTheme(null);
-  } else {
-    localStorage.setItem(ACTIVE_TENANT_KEY, JSON.stringify(institute));
-    applyTenantTheme(institute);
-  }
-}

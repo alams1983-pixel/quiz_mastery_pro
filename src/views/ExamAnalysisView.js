@@ -54,6 +54,47 @@ export function renderExamAnalysisView(attemptId, navigate) {
       </div>
     </div>
 
+    <!-- Graphical Section-Wise Performance Analysis Card -->
+    <div id="section-graphics-container" class="card" style="display: none; padding: 24px; margin-bottom: 24px; border: 1px solid var(--border-color); background: var(--card-bg);">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <div>
+          <h3 style="font-size: 1.25rem; font-weight: 800; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 8px;">
+            📊 Section-Wise Comparative Analysis
+          </h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
+            Graphical breakdown comparing your score, accuracy, and time against cohort average and topper performance across sections.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="btn btn-outline btn-sm btn-sec-mode active" data-mode="score">Score Comparison</button>
+          <button class="btn btn-outline btn-sm btn-sec-mode" data-mode="accuracy">Accuracy %</button>
+          <button class="btn btn-outline btn-sm btn-sec-mode" data-mode="time">Time Distribution</button>
+        </div>
+      </div>
+
+      <!-- Legend Indicator -->
+      <div style="display: flex; gap: 16px; margin-bottom: 16px; font-size: 0.82rem; font-weight: 700; flex-wrap: wrap;">
+        <span style="display: flex; align-items: center; gap: 6px;">
+          <span style="width: 12px; height: 12px; background: #4f46e5; border-radius: 3px; display: inline-block;"></span>
+          👤 My Performance
+        </span>
+        <span style="display: flex; align-items: center; gap: 6px;">
+          <span style="width: 12px; height: 12px; background: #f59e0b; border-radius: 3px; display: inline-block;"></span>
+          👥 Cohort Average
+        </span>
+        <span style="display: flex; align-items: center; gap: 6px;">
+          <span style="width: 12px; height: 12px; background: #10b981; border-radius: 3px; display: inline-block;"></span>
+          🏆 Topper Benchmark
+        </span>
+      </div>
+
+      <!-- Graphical Section List Body -->
+      <div id="sec-graphics-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading section analysis graphics...</div>
+      </div>
+    </div>
+
     <!-- Question Filter Tabs -->
     <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;" id="analysis-filter-bar">
       <button class="btn btn-outline btn-sm active" data-filter="all">All Questions (<span id="cnt-all">0</span>)</button>
@@ -76,6 +117,7 @@ export function renderExamAnalysisView(attemptId, navigate) {
       const data = await apiRequest(`/exams/attempts/${attemptId}/analysis`);
       currentAnalysisData = data;
       renderHeaderAndStats(container, data);
+      renderSectionGraphics(container, data.sectionAnalysis);
       renderQuestionList(container, data.itemAnalysis, activeFilter);
     } catch (err) {
       console.error('Error loading analysis:', err);
@@ -205,6 +247,114 @@ export function renderExamAnalysisView(attemptId, navigate) {
       `;
 
       listContainer.appendChild(card);
+    });
+  }
+
+  function renderSectionGraphics(container, sectionAnalysis) {
+    const secChartContainer = container.querySelector('#section-graphics-container');
+    if (!secChartContainer || !sectionAnalysis || sectionAnalysis.length === 0) return;
+
+    secChartContainer.style.display = 'block';
+
+    const renderChart = (metricMode = 'score') => {
+      const barsHTML = sectionAnalysis.map((sec, idx) => {
+        let myVal = 0, avgVal = 0, topVal = 0, maxVal = 100, unit = '';
+
+        if (metricMode === 'score') {
+          myVal = sec.score;
+          avgVal = sec.cohort_avg_score;
+          topVal = sec.top_score;
+          maxVal = Math.max(sec.max_score || 1, topVal || 1);
+          unit = ' Marks';
+        } else if (metricMode === 'accuracy') {
+          myVal = sec.accuracy_pct;
+          avgVal = sec.cohort_avg_accuracy;
+          topVal = 100;
+          maxVal = 100;
+          unit = '%';
+        } else if (metricMode === 'time') {
+          myVal = Math.round(sec.time_spent_sec / 60);
+          avgVal = Math.round(sec.cohort_avg_time_sec / 60);
+          topVal = Math.max(myVal, avgVal, 1);
+          maxVal = Math.max(myVal, avgVal, 1);
+          unit = ' mins';
+        }
+
+        const myPct = Math.min(100, Math.max(5, Math.round((myVal / maxVal) * 100)));
+        const avgPct = Math.min(100, Math.max(5, Math.round((avgVal / maxVal) * 100)));
+        const topPct = Math.min(100, Math.max(5, Math.round((topVal / maxVal) * 100)));
+
+        return `
+          <div class="card" style="padding: 16px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <h4 style="font-size: 1rem; font-weight: 800; color: var(--primary); margin: 0;">
+                📁 Section ${idx + 1}: ${sec.section_name}
+              </h4>
+              <div style="display: flex; gap: 10px; font-size: 0.8rem; font-weight: 700;">
+                <span style="color: var(--primary);">Score: ${sec.score} / ${sec.max_score}</span>
+                <span style="color: var(--success);">Acc: ${sec.accuracy_pct}%</span>
+                <span style="color: var(--text-muted);">Qs: ${sec.correct_count}✓ / ${sec.wrong_count}✕ / ${sec.unattempted_count}-</span>
+              </div>
+            </div>
+
+            <!-- Grouped Bar Graphics -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px;">
+              <!-- My Performance Bar -->
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 700; color: var(--text-main); margin-bottom: 3px;">
+                  <span>👤 My ${metricMode === 'score' ? 'Score' : metricMode === 'accuracy' ? 'Accuracy' : 'Time'}</span>
+                  <span>${myVal}${unit}</span>
+                </div>
+                <div style="width: 100%; height: 12px; background: rgba(0,0,0,0.06); border-radius: 6px; overflow: hidden;">
+                  <div style="width: ${myPct}%; height: 100%; background: linear-gradient(90deg, #4f46e5 0%, #6366f1 100%); border-radius: 6px; transition: width 0.5s ease;"></div>
+                </div>
+              </div>
+
+              <!-- Cohort Average Bar -->
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 3px;">
+                  <span>👥 Cohort Average</span>
+                  <span>${avgVal}${unit}</span>
+                </div>
+                <div style="width: 100%; height: 12px; background: rgba(0,0,0,0.06); border-radius: 6px; overflow: hidden;">
+                  <div style="width: ${avgPct}%; height: 100%; background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%); border-radius: 6px; transition: width 0.5s ease;"></div>
+                </div>
+              </div>
+
+              <!-- Topper Score Bar (for Score comparison) -->
+              ${metricMode === 'score' ? `
+                <div>
+                  <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 700; color: var(--success); margin-bottom: 3px;">
+                    <span>🏆 Topper Score</span>
+                    <span>${topVal}${unit}</span>
+                  </div>
+                  <div style="width: 100%; height: 12px; background: rgba(0,0,0,0.06); border-radius: 6px; overflow: hidden;">
+                    <div style="width: ${topPct}%; height: 100%; background: linear-gradient(90deg, #10b981 0%, #34d399 100%); border-radius: 6px; transition: width 0.5s ease;"></div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Per Section Footer Stats -->
+            <div style="display: flex; gap: 14px; font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap; border-top: 1px solid var(--border-color); padding-top: 8px;">
+              <span>⏱ Time Spent: <strong>${Math.floor(sec.time_spent_sec / 60)}m ${sec.time_spent_sec % 60}s</strong> (Cohort Avg: <strong>${Math.floor(sec.cohort_avg_time_sec / 60)}m ${sec.cohort_avg_time_sec % 60}s</strong>)</span>
+              <span>🎯 Accuracy Delta: <strong style="color: ${sec.accuracy_pct >= sec.cohort_avg_accuracy ? 'var(--success)' : 'var(--danger)'}">${sec.accuracy_pct >= sec.cohort_avg_accuracy ? '+' : ''}${sec.accuracy_pct - sec.cohort_avg_accuracy}% vs Avg</strong></span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      secChartContainer.querySelector('#sec-graphics-body').innerHTML = barsHTML;
+    };
+
+    renderChart('score');
+
+    secChartContainer.querySelectorAll('.btn-sec-mode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        secChartContainer.querySelectorAll('.btn-sec-mode').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderChart(btn.dataset.mode);
+      });
     });
   }
 

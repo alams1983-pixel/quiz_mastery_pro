@@ -29,7 +29,7 @@ export function renderEnrollmentModal({ previousInstituteName, targetInstitute, 
         <p style="margin: 0 0 0.5rem 0; font-weight: 600;">✨ What happens when you enroll?</p>
         <ul style="margin: 0; padding-left: 1.2rem; line-height: 1.4;">
           <li>You will get access to quizzes and exams from <strong>${targetInstitute.name}</strong>.</li>
-          <li>You can switch between institutes anytime from your <strong>Profile Settings</strong>.</li>
+          <li>You can access tests and batches for <strong>${targetInstitute.name}</strong> on their coaching portal domain.</li>
         </ul>
       </div>
 

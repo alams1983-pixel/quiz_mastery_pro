@@ -51,10 +51,11 @@ export async function renderLeaderboardModal(examId) {
             <th>Total Score</th>
             <th>Accuracy %</th>
             <th>Time</th>
+            <th>Report</th>
           </tr>
         </thead>
         <tbody id="leaderboard-table-body">
-          <tr><td colspan="6" style="text-align: center; padding: 24px;">Loading leaderboard...</td></tr>
+          <tr><td colspan="7" style="text-align: center; padding: 24px;">Loading leaderboard...</td></tr>
         </tbody>
       </table>
     </div>
@@ -75,7 +76,7 @@ export async function renderLeaderboardModal(examId) {
     const podiumEl = container.querySelector('#leaderboard-podium');
 
     if (leaderboard.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 24px; color: var(--text-muted);">No student attempts submitted yet for this exam.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">No student attempts submitted yet for this exam.</td></tr>';
       return;
     }
 
@@ -127,8 +128,21 @@ export async function renderLeaderboardModal(examId) {
         <td style="font-weight: 800; color: var(--primary);">${item.total_score}</td>
         <td style="font-weight: 700; color: ${item.accuracy_pct >= 70 ? 'var(--success)' : 'var(--text-main)'};">${item.accuracy_pct}%</td>
         <td style="font-size: 0.85rem;">${item.duration_mins} Mins</td>
+        <td>
+          <button class="btn btn-outline btn-sm btn-view-analysis-modal" data-attemptid="${item.attempt_id}" style="font-size:0.75rem; padding:3px 8px; font-weight:700;">
+            📊 View Analysis
+          </button>
+        </td>
       </tr>
     `).join('');
+
+    tbody.querySelectorAll('.btn-view-analysis-modal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const attemptId = btn.dataset.attemptid;
+        document.body.removeChild(modalOverlay);
+        window.location.hash = `#/exam-analysis?attemptId=${attemptId}`;
+      });
+    });
 
   } catch (err) {
     console.error('Leaderboard error:', err);

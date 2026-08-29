@@ -296,6 +296,28 @@ export function renderInstituteAdminView(navigate) {
             <textarea id="exam-instructions" class="form-control" rows="3" placeholder="e.g. 1. Scientific calculators are not allowed.&#10;2. Each section has a 15 minute target timing."></textarea>
           </div>
 
+          <!-- Dynamic Exam Sections Setup (1 to 10 Sections) -->
+          <div class="form-group" style="margin-bottom: 14px; background: var(--bg-color); padding: 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label class="form-label" style="font-weight: 700; color: var(--primary); margin: 0;">📁 Exam Sections (1 to 10 Sections)</label>
+              <span style="font-size: 0.8rem; color: var(--text-muted);" id="sec-count-badge">1 / 10 Sections</span>
+            </div>
+            <div style="margin-bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-outline btn-sm btn-sec-preset" data-preset="single">🚀 1 Sec (General)</button>
+              <button type="button" class="btn btn-outline btn-sm btn-sec-preset" data-preset="ssc">📚 SSC (4 Sec)</button>
+              <button type="button" class="btn btn-outline btn-sm btn-sec-preset" data-preset="bank">🏦 Bank PO (3 Sec)</button>
+            </div>
+            <div id="exam-sections-input-container" style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="sec-input-row" style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" class="form-control exam-sec-name-input" value="General" placeholder="Section Name (e.g. Quantitative Aptitude)" required>
+                <button type="button" class="btn btn-outline btn-sm btn-remove-sec-row" style="color: var(--danger); border-color: var(--danger);" title="Remove section">&times;</button>
+              </div>
+            </div>
+            <button type="button" id="btn-add-sec-input-row" class="btn btn-outline btn-sm" style="margin-top: 10px; display: inline-flex; align-items: center; gap: 4px;">
+              ➕ Add Section
+            </button>
+          </div>
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px;">
             <div class="form-group">
               <label class="form-label">Scheduled Start (Optional)</label>
@@ -985,6 +1007,76 @@ function setupInstituteAdminEvents(container) {
       if (e.target === currentModalEl) closeModal();
     });
 
+    // Section input rows & presets logic
+    const secInputContainer = currentModalEl.querySelector('#exam-sections-input-container');
+    const btnAddSecRow = currentModalEl.querySelector('#btn-add-sec-input-row');
+    const secBadge = currentModalEl.querySelector('#sec-count-badge');
+
+    const updateSecBadge = () => {
+      if (!secInputContainer) return;
+      const count = secInputContainer.querySelectorAll('.sec-input-row').length;
+      if (secBadge) secBadge.textContent = `${count} / 10 Sections`;
+      if (btnAddSecRow) btnAddSecRow.disabled = count >= 10;
+    };
+
+    const setSectionsList = (names) => {
+      if (!secInputContainer) return;
+      secInputContainer.innerHTML = '';
+      names.forEach(name => {
+        const row = document.createElement('div');
+        row.className = 'sec-input-row';
+        row.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+        row.innerHTML = `
+          <input type="text" class="form-control exam-sec-name-input" value="${name}" placeholder="Section Name" required>
+          <button type="button" class="btn btn-outline btn-sm btn-remove-sec-row" style="color: var(--danger); border-color: var(--danger);" title="Remove section">&times;</button>
+        `;
+        secInputContainer.appendChild(row);
+      });
+      updateSecBadge();
+    };
+
+    if (btnAddSecRow) {
+      btnAddSecRow.addEventListener('click', () => {
+        const count = secInputContainer.querySelectorAll('.sec-input-row').length;
+        if (count >= 10) {
+          alert('Maximum of 10 sections allowed per exam.');
+          return;
+        }
+        const row = document.createElement('div');
+        row.className = 'sec-input-row';
+        row.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+        row.innerHTML = `
+          <input type="text" class="form-control exam-sec-name-input" value="Section ${count + 1}" placeholder="Section Name" required>
+          <button type="button" class="btn btn-outline btn-sm btn-remove-sec-row" style="color: var(--danger); border-color: var(--danger);" title="Remove section">&times;</button>
+        `;
+        secInputContainer.appendChild(row);
+        updateSecBadge();
+      });
+    }
+
+    if (secInputContainer) {
+      secInputContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-remove-sec-row')) {
+          const rows = secInputContainer.querySelectorAll('.sec-input-row');
+          if (rows.length <= 1) {
+            alert('An exam must have at least 1 section.');
+            return;
+          }
+          e.target.closest('.sec-input-row').remove();
+          updateSecBadge();
+        }
+      });
+    }
+
+    currentModalEl.querySelectorAll('.btn-sec-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const preset = btn.dataset.preset;
+        if (preset === 'single') setSectionsList(['General']);
+        else if (preset === 'ssc') setSectionsList(['General Intelligence & Reasoning', 'General Awareness', 'Quantitative Aptitude', 'English Comprehension']);
+        else if (preset === 'bank') setSectionsList(['Reasoning Ability', 'Quantitative Aptitude', 'English Language']);
+      });
+    });
+
     const form = currentModalEl.querySelector('#form-create-exam');
     if (form) {
       form.addEventListener('submit', async (e) => {
@@ -1004,6 +1096,10 @@ function setupInstituteAdminEvents(container) {
         const isAllBatches = allocMode === 'all';
         const selectedBatchIds = isAllBatches ? [] : Array.from(currentModalEl.querySelectorAll('.exam-batch-cb:checked')).map(cb => parseInt(cb.value, 10));
 
+        const sectionInputs = Array.from(currentModalEl.querySelectorAll('.exam-sec-name-input'))
+          .map(inp => inp.value.trim())
+          .filter(Boolean);
+
         const payload = {
           title: currentModalEl.querySelector('#exam-title').value.trim(),
           category_id: currentModalEl.querySelector('#exam-category-id').value ? parseInt(currentModalEl.querySelector('#exam-category-id').value, 10) : null,
@@ -1017,6 +1113,7 @@ function setupInstituteAdminEvents(container) {
           tag_ids: selectedTagIds,
           is_all_batches: isAllBatches,
           batch_ids: selectedBatchIds,
+          sections: sectionInputs.length > 0 ? sectionInputs : ['General'],
           scheduled_start: currentModalEl.querySelector('#exam-start').value || null,
           scheduled_end: currentModalEl.querySelector('#exam-end').value || null
         };
@@ -1122,18 +1219,36 @@ async function openExamSectionManagerModal(container, exam) {
       const { openQuestionBankSelectorModal } = await import('../components/QuestionBankSelectorModal.js');
       const { renderMath } = await import('../services/katexRenderer.js');
 
-      bodyEl.innerHTML = sections.map(sec => `
+      bodyEl.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 4px;">
+          <div>
+            <strong style="font-size: 1rem; color: var(--primary);">Exam Sections (${sections.length} / 10)</strong>
+            <span style="font-size: 0.82rem; color: var(--text-muted); display: block;">Organize test into 1 to 10 custom sections</span>
+          </div>
+          <button id="btn-add-modal-section" class="btn btn-primary btn-sm" ${sections.length >= 10 ? 'disabled style="opacity: 0.6;"' : ''}>
+            ➕ Add Section
+          </button>
+        </div>
+      ` + sections.map((sec, idx) => `
         <div class="card" style="padding: 18px; border: 1px solid var(--border-color); background: var(--bg-color);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
             <div>
-              <h4 style="font-size: 1.1rem; font-weight: 800; color: var(--primary);">
-                📁 ${sec.section_name}
+              <h4 style="font-size: 1.1rem; font-weight: 800; color: var(--primary); display: flex; align-items: center; gap: 8px;">
+                📁 Section ${idx + 1}: ${sec.section_name}
               </h4>
               <span style="font-size: 0.8rem; color: var(--text-muted);">
                 ${sec.questions ? sec.questions.length : 0} Question(s) Attached
               </span>
             </div>
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm btn-rename-sec" data-secid="${sec.id}" data-secname="${sec.section_name}" title="Rename Section">
+                ✏️ Rename
+              </button>
+              ${idx > 0 ? `<button class="btn btn-outline btn-sm btn-move-sec-up" data-idx="${idx}" title="Move Up">⬆️</button>` : ''}
+              ${idx < sections.length - 1 ? `<button class="btn btn-outline btn-sm btn-move-sec-down" data-idx="${idx}" title="Move Down">⬇️</button>` : ''}
+              <button class="btn btn-outline btn-sm btn-delete-sec" data-secid="${sec.id}" data-secname="${sec.section_name}" data-qcount="${sec.questions ? sec.questions.length : 0}" style="color: var(--danger); border-color: var(--danger);" title="Delete Section">
+                🗑️ Delete
+              </button>
               <button class="btn btn-primary btn-sm btn-attach-bank" data-secid="${sec.id}" data-secname="${sec.section_name}">
                 <i class="ri-link"></i> ➕ Attach Questions from Master Bank
               </button>
@@ -1171,6 +1286,105 @@ async function openExamSectionManagerModal(container, exam) {
       `).join('');
 
       renderMath(bodyEl);
+
+      // Wire Add Section button
+      const btnAddModalSec = bodyEl.querySelector('#btn-add-modal-section');
+      if (btnAddModalSec) {
+        btnAddModalSec.addEventListener('click', async () => {
+          if (sections.length >= 10) return alert('Maximum of 10 sections allowed per exam.');
+          const secName = prompt('Enter new section name (e.g. Reasoning, Physics, General Knowledge):');
+          if (secName && secName.trim()) {
+            try {
+              await apiRequest(`/exams/${exam.id}/sections`, {
+                method: 'POST',
+                body: JSON.stringify({ section_name: secName.trim() })
+              });
+              await reloadBuilderContent();
+              loadInstituteAdminData(container);
+            } catch (err) {
+              alert(`Error adding section: ${err.message}`);
+            }
+          }
+        });
+      }
+
+      // Wire Rename Section buttons
+      bodyEl.querySelectorAll('.btn-rename-sec').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const sId = btn.dataset.secid;
+          const oldName = btn.dataset.secname;
+          const newName = prompt('Rename section:', oldName);
+          if (newName && newName.trim() && newName.trim() !== oldName) {
+            try {
+              await apiRequest(`/exams/sections/${sId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ section_name: newName.trim() })
+              });
+              await reloadBuilderContent();
+              loadInstituteAdminData(container);
+            } catch (err) {
+              alert(`Error renaming section: ${err.message}`);
+            }
+          }
+        });
+      });
+
+      // Wire Delete Section buttons
+      bodyEl.querySelectorAll('.btn-delete-sec').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const sId = btn.dataset.secid;
+          const sName = btn.dataset.secname;
+          const qCount = parseInt(btn.dataset.qcount, 10);
+          if (sections.length <= 1) {
+            return alert('An exam must have at least 1 section. You cannot delete the only section.');
+          }
+          let msg = `Are you sure you want to delete section "${sName}"?`;
+          if (qCount > 0) {
+            msg += `\nWarning: This section has ${qCount} attached question(s). Deleting it will detach those questions from this exam.`;
+          }
+          if (confirm(msg)) {
+            try {
+              await apiRequest(`/exams/sections/${sId}`, { method: 'DELETE' });
+              await reloadBuilderContent();
+              loadInstituteAdminData(container);
+            } catch (err) {
+              alert(`Error deleting section: ${err.message}`);
+            }
+          }
+        });
+      });
+
+      // Wire Move Up/Down buttons for section reordering
+      const handleReorder = async (fromIdx, toIdx) => {
+        const reordered = [...sections];
+        const [moved] = reordered.splice(fromIdx, 1);
+        reordered.splice(toIdx, 0, moved);
+        const section_orders = reordered.map((s, idx) => ({ id: s.id, order: idx + 1 }));
+        try {
+          await apiRequest(`/exams/${exam.id}/sections/reorder`, {
+            method: 'PUT',
+            body: JSON.stringify({ section_orders })
+          });
+          await reloadBuilderContent();
+          loadInstituteAdminData(container);
+        } catch (err) {
+          alert(`Error reordering sections: ${err.message}`);
+        }
+      };
+
+      bodyEl.querySelectorAll('.btn-move-sec-up').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          if (idx > 0) handleReorder(idx, idx - 1);
+        });
+      });
+
+      bodyEl.querySelectorAll('.btn-move-sec-down').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          if (idx < sections.length - 1) handleReorder(idx, idx + 1);
+        });
+      });
 
       // Wire Attach buttons
       bodyEl.querySelectorAll('.btn-attach-bank').forEach(btn => {

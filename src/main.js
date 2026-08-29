@@ -5,7 +5,7 @@ import { renderUserDashboard } from './views/UserDashboard.js';
 import { renderStudentExamsView } from './views/StudentExamsView.js';
 import { renderStudentQuizzesView } from './views/StudentQuizzesView.js';
 import { getUser } from './services/api.js';
-import { getTenantFromURL, fetchTenantBranding, applyTenantTheme, setActiveInstitute } from './services/tenant.js';
+import { getTenantFromURL, fetchTenantBranding, applyTenantTheme } from './services/tenant.js';
 
 const app = document.querySelector('#app');
 
@@ -25,7 +25,6 @@ async function initTenantContext() {
     const branding = await fetchTenantBranding(slug);
     if (branding) {
       applyTenantTheme(branding);
-      setActiveInstitute(branding);
     }
   }
 }

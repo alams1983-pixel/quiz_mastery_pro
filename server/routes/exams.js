@@ -390,13 +390,17 @@ router.post('/', requireInstituteAdmin, async (req, res) => {
       }
     }
 
-    // Create default sections if provided
-    const defaultSections = Array.isArray(sections) && sections.length > 0
-      ? sections
-      : ['General Intelligence & Reasoning', 'General Awareness', 'Quantitative Aptitude', 'English Comprehension'];
+    // Create default sections if provided (1 to 10 sections allowed)
+    let sectionList = Array.isArray(sections) && sections.length > 0
+      ? sections.map(s => String(s).trim()).filter(Boolean)
+      : ['General'];
+
+    if (sectionList.length > 10) {
+      return res.status(400).json({ error: 'An exam cannot have more than 10 sections.' });
+    }
 
     let order = 1;
-    for (const secName of defaultSections) {
+    for (const secName of sectionList) {
       await pool.query('INSERT INTO exam_sections (exam_id, section_name, section_order) VALUES (?, ?, ?)', [examId, secName, order++]);
     }
 
@@ -544,6 +548,120 @@ router.delete('/:id', requireInstituteAdmin, async (req, res) => {
     res.json({ message: 'Exam deleted successfully.' });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting exam.' });
+  }
+});
+
+// 5b. Add a Section to an Exam
+router.post('/:id/sections', requireInstituteAdmin, async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const isAllowed = await verifyExamOwnership(req, examId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this exam.' });
+    }
+
+    const { section_name } = req.body;
+    const cleanName = (section_name || '').trim();
+    if (!cleanName) {
+      return res.status(400).json({ error: 'Section name is required.' });
+    }
+
+    const [existingSections] = await pool.query('SELECT id FROM exam_sections WHERE exam_id = ?', [examId]);
+    if (existingSections.length >= 10) {
+      return res.status(400).json({ error: 'Maximum of 10 sections allowed per exam.' });
+    }
+
+    const nextOrder = existingSections.length + 1;
+    const [result] = await pool.query(
+      'INSERT INTO exam_sections (exam_id, section_name, section_order) VALUES (?, ?, ?)',
+      [examId, cleanName, nextOrder]
+    );
+
+    res.status(201).json({ message: 'Section added successfully.', sectionId: result.insertId });
+  } catch (err) {
+    console.error('Add Section Error:', err);
+    res.status(500).json({ error: 'Error adding section.' });
+  }
+});
+
+// 5c. Rename Exam Section
+router.put('/sections/:sectionId', requireInstituteAdmin, async (req, res) => {
+  try {
+    const sectionId = req.params.sectionId;
+    const isAllowed = await verifySectionOwnership(req, sectionId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this exam section.' });
+    }
+
+    const { section_name, section_order } = req.body;
+    const cleanName = (section_name || '').trim();
+    if (!cleanName) {
+      return res.status(400).json({ error: 'Section name is required.' });
+    }
+
+    if (section_order !== undefined) {
+      await pool.query('UPDATE exam_sections SET section_name = ?, section_order = ? WHERE id = ?', [cleanName, parseInt(section_order, 10), sectionId]);
+    } else {
+      await pool.query('UPDATE exam_sections SET section_name = ? WHERE id = ?', [cleanName, sectionId]);
+    }
+
+    res.json({ message: 'Section updated successfully.' });
+  } catch (err) {
+    console.error('Update Section Error:', err);
+    res.status(500).json({ error: 'Error updating section.' });
+  }
+});
+
+// 5d. Delete Exam Section
+router.delete('/sections/:sectionId', requireInstituteAdmin, async (req, res) => {
+  try {
+    const sectionId = req.params.sectionId;
+    const isAllowed = await verifySectionOwnership(req, sectionId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to delete this exam section.' });
+    }
+
+    const [rows] = await pool.query('SELECT exam_id FROM exam_sections WHERE id = ?', [sectionId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Section not found.' });
+    }
+    const examId = rows[0].exam_id;
+
+    const [existingSections] = await pool.query('SELECT id FROM exam_sections WHERE exam_id = ?', [examId]);
+    if (existingSections.length <= 1) {
+      return res.status(400).json({ error: 'An exam must have at least 1 section. Cannot delete the only section.' });
+    }
+
+    await pool.query('DELETE FROM exam_sections WHERE id = ?', [sectionId]);
+    res.json({ message: 'Section deleted successfully.' });
+  } catch (err) {
+    console.error('Delete Section Error:', err);
+    res.status(500).json({ error: 'Error deleting section.' });
+  }
+});
+
+// 5e. Reorder Exam Sections
+router.put('/:id/sections/reorder', requireInstituteAdmin, async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const isAllowed = await verifyExamOwnership(req, examId);
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Access denied. You do not have permission to modify this exam.' });
+    }
+
+    const { section_orders } = req.body;
+    if (!Array.isArray(section_orders) || section_orders.length === 0) {
+      return res.status(400).json({ error: 'Invalid section_orders array.' });
+    }
+
+    for (const item of section_orders) {
+      await pool.query('UPDATE exam_sections SET section_order = ? WHERE id = ? AND exam_id = ?', [parseInt(item.order, 10), item.id, examId]);
+    }
+
+    res.json({ message: 'Sections reordered successfully.' });
+  } catch (err) {
+    console.error('Reorder Sections Error:', err);
+    res.status(500).json({ error: 'Error reordering sections.' });
   }
 });
 
@@ -1617,10 +1735,88 @@ router.get('/attempts/:attemptId/analysis', requireAuth, async (req, res) => {
         marks_awarded: parseFloat(log.marks_awarded),
         time_spent_sec: log.time_spent_sec,
         avg_time_sec: avgTimeMap.get(qId) || log.time_spent_sec,
-        option_stats_pct: optionStatsPct,
         explanation_en: log.explanation_en,
         explanation_hi: log.explanation_hi,
         image_url: log.image_url
+      };
+    });
+
+    // Calculate Section-Wise Benchmark Analytics (My Score vs Cohort Avg vs Topper Score)
+    const [cohortSectionRows] = await pool.query(`
+      SELECT eil.section_id, eil.attempt_id,
+             SUM(eil.marks_awarded) as sec_score,
+             SUM(CASE WHEN eil.is_correct = 1 THEN 1 ELSE 0 END) as sec_correct,
+             SUM(CASE WHEN eil.is_correct = 0 THEN 1 ELSE 0 END) as sec_wrong,
+             SUM(CASE WHEN eil.is_correct IS NULL THEN 1 ELSE 0 END) as sec_unatt,
+             SUM(eil.time_spent_sec) as sec_time
+      FROM exam_item_logs eil
+      JOIN exam_attempts ea ON eil.attempt_id = ea.id
+      WHERE ea.exam_id = ? AND ea.status IN ('completed', 'auto_submitted')
+      GROUP BY eil.section_id, eil.attempt_id
+    `, [examId]);
+
+    // Map cohort statistics per section
+    const cohortSecStats = new Map();
+    cohortSectionRows.forEach(r => {
+      const secId = r.section_id;
+      if (!cohortSecStats.has(secId)) {
+        cohortSecStats.set(secId, { scores: [], accuracies: [], times: [] });
+      }
+      const score = parseFloat(r.sec_score) || 0;
+      const corr = parseInt(r.sec_correct, 10) || 0;
+      const wrg = parseInt(r.sec_wrong, 10) || 0;
+      const acc = (corr + wrg) > 0 ? Math.round((corr / (corr + wrg)) * 100) : 0;
+      const time = parseInt(r.sec_time, 10) || 0;
+
+      const stat = cohortSecStats.get(secId);
+      stat.scores.push(score);
+      stat.accuracies.push(acc);
+      stat.times.push(time);
+    });
+
+    const posMarks = parseFloat(attempt.positive_marks) || 2.0;
+
+    const sectionAnalysis = sections.map(sec => {
+      const secLogs = itemLogs.filter(log => log.section_id === sec.id);
+      let studentCorrect = 0, studentWrong = 0, studentUnatt = 0, studentScore = 0, studentTime = 0;
+
+      secLogs.forEach(log => {
+        if (log.is_correct === 1 || log.is_correct === true) studentCorrect++;
+        else if (log.is_correct === 0 || log.is_correct === false) studentWrong++;
+        else studentUnatt++;
+        studentScore += parseFloat(log.marks_awarded) || 0;
+        studentTime += parseInt(log.time_spent_sec, 10) || 0;
+      });
+
+      const studentAccuracy = (studentCorrect + studentWrong) > 0
+        ? Math.round((studentCorrect / (studentCorrect + studentWrong)) * 100)
+        : 0;
+
+      const totalQs = secLogs.length;
+      const maxScore = totalQs * posMarks;
+
+      const stat = cohortSecStats.get(sec.id) || { scores: [studentScore], accuracies: [studentAccuracy], times: [studentTime] };
+      const topScore = stat.scores.length > 0 ? Math.max(...stat.scores) : studentScore;
+      const avgScore = stat.scores.length > 0 ? Math.round((stat.scores.reduce((a, b) => a + b, 0) / stat.scores.length) * 100) / 100 : studentScore;
+      const avgAccuracy = stat.accuracies.length > 0 ? Math.round(stat.accuracies.reduce((a, b) => a + b, 0) / stat.accuracies.length) : studentAccuracy;
+      const avgTimeSec = stat.times.length > 0 ? Math.round(stat.times.reduce((a, b) => a + b, 0) / stat.times.length) : studentTime;
+
+      return {
+        section_id: sec.id,
+        section_name: sec.section_name,
+        section_order: sec.section_order,
+        total_questions: totalQs,
+        max_score: maxScore,
+        score: Math.round(studentScore * 100) / 100,
+        accuracy_pct: studentAccuracy,
+        correct_count: studentCorrect,
+        wrong_count: studentWrong,
+        unattempted_count: studentUnatt,
+        time_spent_sec: studentTime,
+        top_score: Math.round(topScore * 100) / 100,
+        cohort_avg_score: avgScore,
+        cohort_avg_accuracy: avgAccuracy,
+        cohort_avg_time_sec: avgTimeSec
       };
     });
 
@@ -1630,6 +1826,7 @@ router.get('/attempts/:attemptId/analysis', requireAuth, async (req, res) => {
       totalCandidates,
       percentile,
       sections,
+      sectionAnalysis,
       itemAnalysis: itemAnalysisList
     });
   } catch (err) {

@@ -1,27 +1,10 @@
 import { apiRequest } from '../services/api.js';
-import { promptJoinInstituteModal } from '../components/BatchSelectionModal.js';
 
 export function renderUserDashboard(navigate, startQuizSession) {
   const container = document.createElement('div');
   container.className = 'view-container fade-in';
 
   container.innerHTML = `
-    <!-- Coaching Institute Membership Banner -->
-    <div id="inst-membership-banner" style="display: none; background: var(--card-bg); border: 1px solid var(--primary-border); border-radius: var(--radius-md); padding: 16px 24px; margin-bottom: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; box-shadow: var(--shadow-sm);">
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <div style="width: 44px; height: 44px; border-radius: 12px; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-          <i class="ri-building-line"></i>
-        </div>
-        <div>
-          <span style="font-size: 0.78rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em;">Enrolled Coaching Institute & Batch</span>
-          <h3 id="user-inst-name" style="font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-top: 2px;">-</h3>
-        </div>
-      </div>
-      <button id="btn-change-inst" class="btn btn-outline" style="font-size: 0.88rem; padding: 8px 16px; font-weight: 700;">
-        <i class="ri-key-2-line"></i> Join / Switch Batch & Institute
-      </button>
-    </div>
-
     <!-- Hero Home Banner -->
     <div style="background: linear-gradient(135deg, var(--primary) 0%, #1e1b4b 100%); border-radius: var(--radius-lg); padding: 32px 36px; color: #ffffff; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; box-shadow: var(--shadow-md);">
       <div>
@@ -96,9 +79,6 @@ export function renderUserDashboard(navigate, startQuizSession) {
 }
 
 async function setupUserDashboard(container, navigate) {
-  const banner = container.querySelector('#inst-membership-banner');
-  const userInstName = container.querySelector('#user-inst-name');
-  const btnChangeInst = container.querySelector('#btn-change-inst');
   const sscGrid = container.querySelector('#ssc-exams-grid');
   const btnGoExams = container.querySelector('#btn-go-exams');
   const btnGoQuizzes = container.querySelector('#btn-go-quizzes');
@@ -107,28 +87,6 @@ async function setupUserDashboard(container, navigate) {
   btnGoExams.addEventListener('click', () => navigate('student-exams'));
   btnGoQuizzes.addEventListener('click', () => navigate('student-quizzes'));
   btnViewAllExams.addEventListener('click', () => navigate('student-exams'));
-
-  const promptJoinInstitute = () => {
-    promptJoinInstituteModal(() => {
-      loadUserProfile();
-      loadSSCExams();
-    });
-  };
-
-  if (btnChangeInst) btnChangeInst.addEventListener('click', promptJoinInstitute);
-
-  async function loadUserProfile() {
-    try {
-      const res = await apiRequest('/auth/me');
-      const u = res.user;
-      if (u.institute_name) {
-        banner.style.display = 'flex';
-        userInstName.textContent = `${u.institute_name} (${u.institute_code}) • Batch: ${u.batch_name || 'General Batch'}`;
-      }
-    } catch (e) {
-      // Guest
-    }
-  }
 
   async function loadSSCExams() {
     try {
@@ -175,6 +133,5 @@ async function setupUserDashboard(container, navigate) {
     }
   }
 
-  loadUserProfile();
   loadSSCExams();
 }
