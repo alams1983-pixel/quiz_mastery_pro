@@ -7,6 +7,8 @@ import {
   loginWithEmailPassword,
   registerWithEmailPassword,
   loginWithGoogle,
+  loginWithGoogleRedirect,
+  checkGoogleRedirectResult,
   setupRecaptcha,
   sendPhoneOtp,
   confirmPhoneOtp
@@ -448,26 +450,38 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
     }
   });
 
-  // Google OAuth Sign In Button
-  if (btnGoogleAuth) {
-    btnGoogleAuth.addEventListener('click', async () => {
-      btnGoogleAuth.disabled = true;
-      btnGoogleAuth.innerHTML = '<i class="ri-loader-4-line spin"></i> Authenticating with Google...';
-      try {
-        const { idToken } = await loginWithGoogle();
+  // Check for pending Google Redirect authentication result on mount
+  setTimeout(async () => {
+    try {
+      const redirectRes = await checkGoogleRedirectResult();
+      if (redirectRes && redirectRes.idToken) {
+        const savedAccountType = sessionStorage.getItem('google_auth_account_type') || selectedAccountType;
+        sessionStorage.removeItem('google_auth_account_type');
+
         const tenantSlug = currentBranding ? (currentBranding.slug || currentBranding.code) : getTenantFromURL();
         const authData = await api.firebaseLogin({
-          idToken,
-          account_type: selectedAccountType,
+          idToken: redirectRes.idToken,
+          account_type: savedAccountType,
           institute_slug: tenantSlug
         });
         handleLoginResponse(authData);
+      }
+    } catch (e) {
+      console.warn('Google Redirect Processing:', e);
+    }
+  }, 100);
+
+  // Google OAuth Sign In Button (Uses Redirect Flow)
+  if (btnGoogleAuth) {
+    btnGoogleAuth.addEventListener('click', async () => {
+      btnGoogleAuth.disabled = true;
+      btnGoogleAuth.innerHTML = '<i class="ri-loader-4-line spin"></i> Redirecting to Google...';
+      try {
+        sessionStorage.setItem('google_auth_account_type', selectedAccountType);
+        await loginWithGoogleRedirect();
       } catch (err) {
-        console.error('🔴 Detailed Google Auth Error:', err);
-        console.error('   Error Code:', err.code);
-        console.error('   Error Message:', err.message);
-        alert(err.message || 'Google Sign-In failed.');
-      } finally {
+        console.error('🔴 Google Redirect Initiation Error:', err);
+        alert(err.message || 'Failed to initiate Google Sign-In.');
         btnGoogleAuth.disabled = false;
         btnGoogleAuth.innerHTML = '<i class="ri-google-fill" style="color: #ea4335; font-size: 1.2rem;"></i> Sign in with Google';
       }

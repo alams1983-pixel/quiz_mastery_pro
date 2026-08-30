@@ -5,6 +5,8 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   RecaptchaVerifier,
   signInWithPhoneNumber
 } from 'firebase/auth';
@@ -41,7 +43,33 @@ export async function registerWithEmailPassword(email, password) {
 }
 
 /**
- * Sign in with Google Provider
+ * Initiate Google Sign-In via Redirect Flow
+ */
+export async function loginWithGoogleRedirect() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  await signInWithRedirect(auth, provider);
+}
+
+/**
+ * Process Google Redirect Result on Page Mount
+ */
+export async function checkGoogleRedirectResult() {
+  try {
+    const userCredential = await getRedirectResult(auth);
+    if (userCredential && userCredential.user) {
+      const idToken = await userCredential.user.getIdToken();
+      return { user: userCredential.user, idToken };
+    }
+  } catch (err) {
+    console.error('🔴 Google Redirect Result Auth Error:', err);
+    alert('Google Redirect Authentication failed: ' + (err.message || 'Unknown error'));
+  }
+  return null;
+}
+
+/**
+ * Legacy/Popup Sign in with Google Provider
  */
 export async function loginWithGoogle() {
   const provider = new GoogleAuthProvider();
