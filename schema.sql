@@ -1,13 +1,20 @@
--- Disable foreign key checks during schema creation
-SET FOREIGN_KEY_CHECKS = 0;
+-- ═══════════════════════════════════════════════════════════════════════════
+-- EDUTORAI PRO - COMPLETE ENTERPRISE MYSQL DATABASE SCHEMA
+-- ═══════════════════════════════════════════════════════════════════════════
 
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- 1. Institutes Table (Coaching Institute Tenants)
 CREATE TABLE IF NOT EXISTS institutes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     code VARCHAR(50) UNIQUE NOT NULL,
-    logo_url VARCHAR(255) NULL,
+    slug VARCHAR(255) UNIQUE NULL,
+    logo_url VARCHAR(500) NULL,
+    welcome_title VARCHAR(255) NULL,
+    welcome_subtitle VARCHAR(500) NULL,
+    primary_color VARCHAR(20) DEFAULT '#0d9488',
+    secondary_color VARCHAR(20) DEFAULT '#7c3aed',
     contact_email VARCHAR(255) NOT NULL,
     address TEXT NULL,
     status ENUM('active', 'inactive') DEFAULT 'active',
@@ -30,6 +37,19 @@ CREATE TABLE IF NOT EXISTS users (
     CONSTRAINT fk_user_institute FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE SET NULL,
     KEY idx_users_inst_role (institute_id, role, id),
     KEY idx_users_search (full_name(50))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2b. Institute Memberships Table (Multi-Institute Enrollment)
+CREATE TABLE IF NOT EXISTS institute_memberships (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    institute_id INT NOT NULL,
+    user_id INT NOT NULL,
+    role ENUM('institute_admin', 'teacher', 'student') NOT NULL DEFAULT 'student',
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_user_institute (institute_id, user_id),
+    FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. Categories Table (Hierarchical tree structure)
@@ -86,6 +106,7 @@ CREATE TABLE IF NOT EXISTS batches (
     institute_id INT NOT NULL,
     name VARCHAR(150) NOT NULL,
     code VARCHAR(50) NULL,
+    target_exam VARCHAR(150) NULL,
     description TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE
@@ -104,71 +125,14 @@ CREATE TABLE IF NOT EXISTS quiz_batches (
 CREATE TABLE IF NOT EXISTS student_batches (
     user_id INT NOT NULL,
     batch_id INT NOT NULL,
+    status ENUM('pending', 'approved', 'rejected') DEFAULT 'approved',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, batch_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5e. Exam-Batches Mapping Table
-CREATE TABLE IF NOT EXISTS exam_batches (
-    exam_id INT NOT NULL,
-    batch_id INT NOT NULL,
-    PRIMARY KEY (exam_id, batch_id),
-    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
-    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 6. Questions Table
-CREATE TABLE IF NOT EXISTS questions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    quiz_id INT NOT NULL,
-    question_text TEXT NOT NULL,
-    options_json JSON NOT NULL,
-    correct_answer_index INT NOT NULL,
-    explanation TEXT,
-    tags_json JSON NULL,
-    image_path VARCHAR(255) NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 7. Question Activity Logs Table (Per-question telemetry)
-CREATE TABLE IF NOT EXISTS question_activity_logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    question_id INT NOT NULL,
-    quiz_id INT NOT NULL,
-    is_correct BOOLEAN NOT NULL,
-    time_spent_sec INT DEFAULT 0,
-    selected_option_index INT NOT NULL,
-    attempt_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
-    FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 8. Quiz Attempts Table (Overall completed session metrics)
-CREATE TABLE IF NOT EXISTS quiz_attempts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    quiz_id INT NOT NULL,
-    score INT NOT NULL,
-    total_questions INT NOT NULL,
-    accuracy_pct INT NOT NULL,
-    time_taken_sec INT NOT NULL,
-    mastery_level INT DEFAULT 1,
-    details_json JSON NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ═════════════════════════════════════════════════════════════════
--- 9. Dedicated SSC Multi-Section Exam Tables (Phase 2 & Phase 3)
--- ═════════════════════════════════════════════════════════════════
-
--- Comprehension Passages
+-- 6. Comprehension Passages
 CREATE TABLE IF NOT EXISTS passages (
     id INT AUTO_INCREMENT PRIMARY KEY,
     institute_id INT NOT NULL,
@@ -181,7 +145,7 @@ CREATE TABLE IF NOT EXISTS passages (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Multi-Section Exams
+-- 7. Multi-Section Exams
 CREATE TABLE IF NOT EXISTS exams (
     id INT AUTO_INCREMENT PRIMARY KEY,
     institute_id INT NOT NULL,
@@ -207,7 +171,7 @@ CREATE TABLE IF NOT EXISTS exams (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Exam-Tags Mapping Table
+-- 8. Exam-Tags Mapping Table
 CREATE TABLE IF NOT EXISTS exam_tags (
     exam_id INT NOT NULL,
     tag_id INT NOT NULL,
@@ -216,7 +180,16 @@ CREATE TABLE IF NOT EXISTS exam_tags (
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Exam Sections (Reasoning, GA, Quant, English, etc.)
+-- 9. Exam-Batches Mapping Table (Placed after exams & batches tables)
+CREATE TABLE IF NOT EXISTS exam_batches (
+    exam_id INT NOT NULL,
+    batch_id INT NOT NULL,
+    PRIMARY KEY (exam_id, batch_id),
+    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10. Exam Sections (Reasoning, GA, Quant, English, etc.)
 CREATE TABLE IF NOT EXISTS exam_sections (
     id INT AUTO_INCREMENT PRIMARY KEY,
     exam_id INT NOT NULL,
@@ -225,7 +198,7 @@ CREATE TABLE IF NOT EXISTS exam_sections (
     FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Master Question Bank Table (Independent Repository of Questions)
+-- 11. Master Question Bank Table (Independent Repository of Questions)
 CREATE TABLE IF NOT EXISTS question_bank (
     id INT AUTO_INCREMENT PRIMARY KEY,
     institute_id INT NOT NULL,
@@ -253,7 +226,7 @@ CREATE TABLE IF NOT EXISTS question_bank (
     KEY idx_qb_diff (difficulty)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Question Bank Tags Mapping Table
+-- 12. Question Bank Tags Mapping Table
 CREATE TABLE IF NOT EXISTS question_bank_tags (
     question_id INT NOT NULL,
     tag_id INT NOT NULL,
@@ -262,7 +235,7 @@ CREATE TABLE IF NOT EXISTS question_bank_tags (
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Exam Section to Master Question Mapping (Many-to-Many Linking)
+-- 13. Exam Section to Master Question Mapping (Many-to-Many Linking)
 CREATE TABLE IF NOT EXISTS exam_section_questions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     section_id INT NOT NULL,
@@ -274,7 +247,7 @@ CREATE TABLE IF NOT EXISTS exam_section_questions (
     FOREIGN KEY (question_id) REFERENCES question_bank(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Legacy Exam Questions (Retained for backwards compatibility)
+-- 14. Legacy Exam Questions (Retained for backwards compatibility)
 CREATE TABLE IF NOT EXISTS exam_questions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     section_id INT NOT NULL,
@@ -296,7 +269,52 @@ CREATE TABLE IF NOT EXISTS exam_questions (
     FOREIGN KEY (passage_id) REFERENCES passages(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Exam Attempts
+-- 15. Practice Questions Table
+CREATE TABLE IF NOT EXISTS questions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    quiz_id INT NOT NULL,
+    question_text TEXT NOT NULL,
+    options_json JSON NOT NULL,
+    correct_answer_index INT NOT NULL,
+    explanation TEXT,
+    tags_json JSON NULL,
+    image_path VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 16. Question Activity Logs Table (Per-question telemetry)
+CREATE TABLE IF NOT EXISTS question_activity_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    question_id INT NOT NULL,
+    quiz_id INT NOT NULL,
+    is_correct BOOLEAN NOT NULL,
+    time_spent_sec INT DEFAULT 0,
+    selected_option_index INT NOT NULL,
+    attempt_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 17. Quiz Attempts Table (Overall completed session metrics)
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    quiz_id INT NOT NULL,
+    score INT NOT NULL,
+    total_questions INT NOT NULL,
+    accuracy_pct INT NOT NULL,
+    time_taken_sec INT NOT NULL,
+    mastery_level INT DEFAULT 1,
+    details_json JSON NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 18. Exam Attempts
 CREATE TABLE IF NOT EXISTS exam_attempts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     exam_id INT NOT NULL,
@@ -319,7 +337,7 @@ CREATE TABLE IF NOT EXISTS exam_attempts (
     FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Exam Item Telemetry Logs (Per-question response)
+-- 19. Exam Item Telemetry Logs (Per-question response)
 CREATE TABLE IF NOT EXISTS exam_item_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     attempt_id INT NOT NULL,
@@ -338,5 +356,3 @@ CREATE TABLE IF NOT EXISTS exam_item_logs (
 
 -- Re-enable foreign key checks
 SET FOREIGN_KEY_CHECKS = 1;
-
-
