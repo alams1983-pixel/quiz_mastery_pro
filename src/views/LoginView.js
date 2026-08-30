@@ -463,6 +463,9 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
         });
         handleLoginResponse(authData);
       } catch (err) {
+        console.error('🔴 Detailed Google Auth Error:', err);
+        console.error('   Error Code:', err.code);
+        console.error('   Error Message:', err.message);
         alert(err.message || 'Google Sign-In failed.');
       } finally {
         btnGoogleAuth.disabled = false;
