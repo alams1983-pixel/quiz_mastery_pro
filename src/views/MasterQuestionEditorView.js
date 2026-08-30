@@ -67,6 +67,16 @@ export function renderMasterQuestionEditorView(navigate, params = {}) {
           </label>
         </div>
 
+        <!-- Question Tags Input -->
+        <div class="form-group" style="margin-bottom:18px; background:var(--card-bg); padding:14px; border-radius:var(--radius-sm); border:1px solid var(--border-color);">
+          <label class="form-label" style="font-weight:700; margin-bottom:6px; display:block;">🏷️ Question Tags (Array)</label>
+          <div id="tags-chips-container" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:28px;"></div>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="input-new-tag" class="form-control" placeholder="Type tag and press Enter or comma (e.g. Physics, SSC CGL 2026)..." style="font-size:0.88rem; flex:1;" />
+            <button type="button" id="btn-add-tag-chip" class="btn btn-outline btn-sm" style="font-weight:700;">+ Add Tag</button>
+          </div>
+        </div>
+
         <!-- Language Tabs -->
         <div style="display:flex; gap:10px; border-bottom:2px solid var(--border-color); margin-bottom:18px;">
           <button id="tab-lang-en" class="btn-text active" style="font-weight:700; padding:8px 14px; border-bottom:3px solid var(--primary);">
@@ -487,6 +497,66 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
   container.addEventListener('input', updatePreview);
   container.addEventListener('change', updatePreview);
 
+  // Dynamic Tags Chip Management
+  let currentQuestionTags = [];
+
+  function renderTagChips() {
+    const tagsContainer = container.querySelector('#tags-chips-container');
+    if (!tagsContainer) return;
+    if (currentQuestionTags.length === 0) {
+      tagsContainer.innerHTML = '<span style="font-size:0.82rem; color:var(--text-muted); font-style:italic;">No tags added yet. Add as many tags as needed.</span>';
+      return;
+    }
+
+    tagsContainer.innerHTML = currentQuestionTags.map((t, idx) => `
+      <span class="badge-tag" style="background:var(--bg-color); border:1px solid var(--border-color); font-weight:700; padding:4px 10px; display:inline-flex; align-items:center; gap:6px;">
+        🏷️ ${t}
+        <button type="button" class="btn-remove-tag-chip" data-idx="${idx}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:bold; font-size:1.1rem; padding:0; line-height:1;" aria-label="Remove Tag">&times;</button>
+      </span>
+    `).join('');
+
+    tagsContainer.querySelectorAll('.btn-remove-tag-chip').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const idx = parseInt(btn.dataset.idx, 10);
+        currentQuestionTags.splice(idx, 1);
+        renderTagChips();
+      });
+    });
+  }
+
+  function addTagFromInput() {
+    const tagInp = container.querySelector('#input-new-tag');
+    if (!tagInp) return;
+    const rawVal = tagInp.value.trim();
+    if (!rawVal) return;
+
+    const newTags = rawVal.split(',').map(t => t.trim()).filter(Boolean);
+    newTags.forEach(t => {
+      if (!currentQuestionTags.includes(t)) {
+        currentQuestionTags.push(t);
+      }
+    });
+
+    tagInp.value = '';
+    renderTagChips();
+  }
+
+  const btnAddTag = container.querySelector('#btn-add-tag-chip');
+  const inputNewTag = container.querySelector('#input-new-tag');
+
+  if (btnAddTag) btnAddTag.addEventListener('click', addTagFromInput);
+  if (inputNewTag) {
+    inputNewTag.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addTagFromInput();
+      }
+    });
+  }
+
+  renderTagChips();
+
   // Initialize 4 default options
   renderOptionBuilderRows();
 
@@ -510,6 +580,13 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
         if (target.passage_image_url) pImgUrl.value = normalizeImageUrl(target.passage_image_url);
         if (target.image_url) qImgUrl.value = normalizeImageUrl(target.image_url);
         if (target.explanation_image_url) expImgUrl.value = normalizeImageUrl(target.explanation_image_url);
+
+        if (Array.isArray(target.tags) && target.tags.length > 0) {
+          currentQuestionTags = [...target.tags];
+        } else if (target.tag_names) {
+          currentQuestionTags = target.tag_names.split(',').map(t => t.trim()).filter(Boolean);
+        }
+        renderTagChips();
 
         const enOptsData = target.options_en || target.options || [];
         const hiOptsData = target.options_hi || [];
@@ -553,7 +630,8 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
       explanation_en: qExpEn.value.trim(),
       explanation_hi: qExpHi.value.trim(),
       explanation_image_url: expImgUrl.value.trim(),
-      is_global: qGlobal ? qGlobal.checked : false
+      is_global: qGlobal ? qGlobal.checked : false,
+      tags: currentQuestionTags
     };
 
     try {
@@ -575,6 +653,8 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
         qExpEn.value = ''; qExpHi.value = '';
         pTextEn.value = ''; pTextHi.value = '';
         pImgUrl.value = ''; qImgUrl.value = ''; expImgUrl.value = '';
+        currentQuestionTags = [];
+        renderTagChips();
         optionsCount = 4; correctOptionIndex = 0;
         renderOptionBuilderRows();
         updatePreview();

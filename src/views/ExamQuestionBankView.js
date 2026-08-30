@@ -1,23 +1,40 @@
 import { apiRequest } from '../services/api.js';
 import { renderMath } from '../services/katexRenderer.js';
+import { showLoadingOverlay, hideLoadingOverlay } from '../components/LoadingOverlayModal.js';
 
-let cachedBankExams = [];
 let cachedBankCategories = [];
+let cachedBankTags = [];
 let cachedBankQuestions = [];
 let currentNavigateFn = null;
+let activeScope = 'all'; // 'all', 'global', 'mine'
+
+let currentPage = 1;
+let currentLimit = 20;
+let paginationMeta = {
+  total: 0,
+  page: 1,
+  limit: 20,
+  totalPages: 1,
+  hasNextPage: false,
+  hasPrevPage: false
+};
+
+let searchDebounceTimer = null;
 
 export function renderExamQuestionBankView(navigate, params = {}) {
   currentNavigateFn = typeof navigate === 'function' ? navigate : null;
+  currentPage = 1;
 
   const container = document.createElement('div');
   container.className = 'view-container fade-in';
 
   container.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+    <!-- Header & Action Buttons -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
       <div>
         <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">📚 Master Question Repository</h1>
         <p style="color: var(--text-muted); font-size: 0.95rem;">
-          Manage your institute's central question bank with taxonomy validation, multi-language support, line breaks, and hybrid image+text content.
+          Central independent repository of questions with server-side pagination, multi-language support, KaTeX math, dynamic tags, and category hierarchy.
         </p>
       </div>
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -30,23 +47,30 @@ export function renderExamQuestionBankView(navigate, params = {}) {
       </div>
     </div>
 
+    <!-- Scope Filter Tabs (All / Global / Private) -->
+    <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border-color); padding-bottom: 2px;">
+      <button id="scope-tab-all" class="scope-tab-btn active" style="font-weight: 700; padding: 8px 16px; border-bottom: 3px solid var(--primary); background: none; border-top: none; border-left: none; border-right: none; cursor: pointer; color: var(--primary);">
+        <i class="ri-file-list-3-line"></i> All Questions
+      </button>
+      <button id="scope-tab-global" class="scope-tab-btn" style="font-weight: 700; padding: 8px 16px; background: none; border: none; cursor: pointer; color: var(--text-muted);">
+        🌐 Global Master Questions
+      </button>
+      <button id="scope-tab-mine" class="scope-tab-btn" style="font-weight: 700; padding: 8px 16px; background: none; border: none; cursor: pointer; color: var(--text-muted);">
+        🏫 My Institute Private Questions
+      </button>
+    </div>
+
     <!-- Filters Bar -->
-    <div class="card" style="padding: 18px; margin-bottom: 24px; background: var(--card-bg);">
+    <div class="card" style="padding: 18px; margin-bottom: 20px; background: var(--card-bg);">
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; align-items: center;">
         <div>
-          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Filter by Category</label>
+          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Category (Hierarchy)</label>
           <select id="filter-category" class="form-control">
             <option value="">-- All Categories --</option>
           </select>
         </div>
         <div>
-          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Filter by Exam</label>
-          <select id="filter-exam" class="form-control">
-            <option value="">-- All Exams --</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Filter by Difficulty</label>
+          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Difficulty Level</label>
           <select id="filter-difficulty" class="form-control">
             <option value="">-- All Difficulties --</option>
             <option value="easy">Easy</option>
@@ -55,11 +79,20 @@ export function renderExamQuestionBankView(navigate, params = {}) {
           </select>
         </div>
         <div>
+          <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Question Tags</label>
+          <select id="filter-tag" class="form-control">
+            <option value="">-- All Tags --</option>
+          </select>
+        </div>
+        <div>
           <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">Search Keyword</label>
-          <input type="text" id="filter-search" class="form-control" placeholder="Search text, explanation, passage...">
+          <input type="text" id="filter-search" class="form-control" placeholder="Search text, options, explanation...">
         </div>
       </div>
     </div>
+
+    <!-- Top Pagination Bar Container -->
+    <div id="top-pagination-container" style="margin-bottom: 16px;"></div>
 
     <!-- Question Bank Container -->
     <div id="questions-list-container" style="display: flex; flex-direction: column; gap: 16px;">
@@ -67,55 +100,170 @@ export function renderExamQuestionBankView(navigate, params = {}) {
         Loading master question bank...
       </div>
     </div>
+
+    <!-- Bottom Pagination Bar Container -->
+    <div id="bottom-pagination-container" style="margin-top: 20px;"></div>
   `;
 
-  // Internal State & Handlers
   loadData(container, params);
-
+  setupEvents(container);
   return container;
 }
 
 async function loadData(container, params = {}) {
+  const catVal = container.querySelector('#filter-category')?.value || '';
+  const diffVal = container.querySelector('#filter-difficulty')?.value || '';
+  const tagVal = container.querySelector('#filter-tag')?.value || '';
+  const searchVal = container.querySelector('#filter-search')?.value.trim() || '';
+
+  showLoadingOverlay('Loading Master Question Repository...', 'Fetching page & metadata from central repository...');
+
   try {
-    const [examsRes, qRes, catRes] = await Promise.all([
-      apiRequest('/exams'),
-      apiRequest('/exams/questions/all'),
-      apiRequest('/categories').catch(() => ({ flatCategories: [] }))
+    const queryParams = new URLSearchParams({
+      page: currentPage,
+      limit: currentLimit,
+      scope: activeScope
+    });
+
+    if (catVal) queryParams.append('category_id', catVal);
+    if (diffVal) queryParams.append('difficulty', diffVal);
+    if (tagVal) queryParams.append('tag', tagVal);
+    if (searchVal) queryParams.append('search', searchVal);
+
+    const [qRes, catRes, tagRes] = await Promise.all([
+      apiRequest(`/exams/questions/all?${queryParams.toString()}`),
+      cachedBankCategories.length > 0 ? Promise.resolve({ flatCategories: cachedBankCategories }) : apiRequest('/categories').catch(() => ({ flatCategories: [] })),
+      cachedBankTags.length > 0 ? Promise.resolve({ tags: cachedBankTags }) : apiRequest('/tags').catch(() => ({ tags: [] }))
     ]);
 
-    cachedBankExams = examsRes.exams || [];
     cachedBankQuestions = qRes.questions || [];
+    paginationMeta = qRes.pagination || { total: cachedBankQuestions.length, page: currentPage, limit: currentLimit, totalPages: 1 };
     cachedBankCategories = catRes.flatCategories || [];
+    cachedBankTags = tagRes.tags || [];
 
     populateFilters(container);
+    renderPaginationBars(container);
     renderQuestionsList(container, cachedBankQuestions);
-    setupEvents(container);
-
-    if (params.examId) {
-      const examSel = container.querySelector('#filter-exam');
-      if (examSel) {
-        examSel.value = params.examId;
-        applyFilters(container);
-      }
-    }
   } catch (err) {
     console.error('Failed to load question bank data:', err);
+  } finally {
+    hideLoadingOverlay();
   }
+}
+
+function buildHierarchicalCategoryOptions(categories) {
+  const map = new Map();
+  categories.forEach(c => map.set(c.id, { ...c, children: [] }));
+
+  const roots = [];
+  categories.forEach(c => {
+    if (c.parent_id && map.has(c.parent_id)) {
+      map.get(c.parent_id).children.push(map.get(c.id));
+    } else {
+      roots.push(map.get(c.id));
+    }
+  });
+
+  const options = [];
+  function traverse(node, depth = 0) {
+    const indent = depth > 0 ? '— '.repeat(depth) : '';
+    options.push({
+      id: node.id,
+      label: `${indent}${node.icon || '📂'} ${node.name}`
+    });
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => traverse(child, depth + 1));
+    }
+  }
+
+  roots.forEach(root => traverse(root, 0));
+  return options;
 }
 
 function populateFilters(container) {
   const catSel = container.querySelector('#filter-category');
-  const examSel = container.querySelector('#filter-exam');
+  const tagSel = container.querySelector('#filter-tag');
 
-  if (catSel) {
-    catSel.innerHTML = '<option value="">-- All Categories --</option>' +
-      cachedBankCategories.map(c => `<option value="${c.id}">${c.icon || '📂'} ${c.name}</option>`).join('');
+  if (catSel && catSel.options.length <= 1) {
+    const hierarchicalOpts = buildHierarchicalCategoryOptions(cachedBankCategories);
+    catSel.innerHTML = '<option value="">-- All Categories (Hierarchy) --</option>' +
+      hierarchicalOpts.map(o => `<option value="${o.id}">${o.label}</option>`).join('');
   }
 
-  if (examSel) {
-    examSel.innerHTML = '<option value="">-- All Exams --</option>' +
-      cachedBankExams.map(e => `<option value="${e.id}">${e.title}</option>`).join('');
+  if (tagSel && tagSel.options.length <= 1) {
+    tagSel.innerHTML = '<option value="">-- All Tags --</option>' +
+      cachedBankTags.map(t => `<option value="${t.name}">🏷️ ${t.name}</option>`).join('');
   }
+}
+
+function renderPaginationBars(container) {
+  const topBox = container.querySelector('#top-pagination-container');
+  const bottomBox = container.querySelector('#bottom-pagination-container');
+
+  const { total, page, limit, totalPages } = paginationMeta;
+  const startItem = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(total, page * limit);
+
+  const paginationHtml = `
+    <div class="pagination-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 18px; background:var(--card-bg); border-radius:var(--radius-md); border:1px solid var(--border-color);">
+      <div style="font-size:0.88rem; color:var(--text-muted); font-weight:600;">
+        Showing <strong style="color:var(--text-main);">${startItem}–${endItem}</strong> of <strong style="color:var(--primary);">${total.toLocaleString()}</strong> questions
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm btn-page-first" ${page <= 1 ? 'disabled' : ''} style="font-weight:700;">
+          <i class="ri-skip-left-line"></i> First
+        </button>
+        <button class="btn btn-outline btn-sm btn-page-prev" ${page <= 1 ? 'disabled' : ''} style="font-weight:700;">
+          <i class="ri-arrow-left-s-line"></i> Prev
+        </button>
+
+        <span style="font-size:0.88rem; font-weight:700; color:var(--text-main); padding:0 4px;">
+          Page ${page} of ${totalPages}
+        </span>
+
+        <button class="btn btn-outline btn-sm btn-page-next" ${page >= totalPages ? 'disabled' : ''} style="font-weight:700;">
+          Next <i class="ri-arrow-right-s-line"></i>
+        </button>
+        <button class="btn btn-outline btn-sm btn-page-last" ${page >= totalPages ? 'disabled' : ''} style="font-weight:700;">
+          Last <i class="ri-skip-right-line"></i>
+        </button>
+
+        <select class="form-control select-page-limit" style="width: auto; padding: 4px 8px; font-size: 0.85rem; font-weight:700;">
+          <option value="20" ${limit === 20 ? 'selected' : ''}>20 / page</option>
+          <option value="50" ${limit === 50 ? 'selected' : ''}>50 / page</option>
+          <option value="100" ${limit === 100 ? 'selected' : ''}>100 / page</option>
+          <option value="200" ${limit === 200 ? 'selected' : ''}>200 / page</option>
+        </select>
+      </div>
+    </div>
+  `;
+
+  if (topBox) topBox.innerHTML = paginationHtml;
+  if (bottomBox) bottomBox.innerHTML = paginationHtml;
+
+  // Attach Pagination Button Listeners
+  [topBox, bottomBox].forEach(box => {
+    if (!box) return;
+
+    box.querySelector('.btn-page-first')?.addEventListener('click', () => {
+      if (currentPage > 1) { currentPage = 1; loadData(container); }
+    });
+    box.querySelector('.btn-page-prev')?.addEventListener('click', () => {
+      if (currentPage > 1) { currentPage--; loadData(container); }
+    });
+    box.querySelector('.btn-page-next')?.addEventListener('click', () => {
+      if (currentPage < totalPages) { currentPage++; loadData(container); }
+    });
+    box.querySelector('.btn-page-last')?.addEventListener('click', () => {
+      if (currentPage < totalPages) { currentPage = totalPages; loadData(container); }
+    });
+    box.querySelector('.select-page-limit')?.addEventListener('change', (e) => {
+      currentLimit = parseInt(e.target.value, 10) || 20;
+      currentPage = 1;
+      loadData(container);
+    });
+  });
 }
 
 function renderQuestionsList(container, list) {
@@ -131,25 +279,33 @@ function renderQuestionsList(container, list) {
     return;
   }
 
+  const startOffset = (paginationMeta.page - 1) * paginationMeta.limit;
+
   listContainer.innerHTML = list.map((q, idx) => {
-    const tagBadges = q.tag_names
-      ? q.tag_names.split(',').map(t => `<span class="badge-tag" style="background:var(--bg-color); border:1px solid var(--border-color);">🏷️ ${t.trim()}</span>`).join('')
-      : '';
+    const tagsArr = Array.isArray(q.tags) && q.tags.length > 0
+      ? q.tags
+      : (q.tag_names ? q.tag_names.split(',').map(t => t.trim()) : []);
+
+    const tagBadges = tagsArr.map(t => `
+      <span class="badge-tag" style="background:var(--bg-color); border:1px solid var(--border-color); font-weight:600;">🏷️ ${t}</span>
+    `).join('');
+
+    const isGlobal = !!q.is_global;
 
     const optsEn = q.options_en || [];
     const optsHi = q.options_hi || [];
     const optsImgs = q.options_images || [];
 
     return `
-      <div class="card" style="padding: 20px; border-left: 4px solid var(--primary);">
+      <div class="card" style="padding: 20px; border-left: 4px solid ${isGlobal ? 'var(--primary)' : 'var(--accent)'}; background: ${isGlobal ? 'rgba(59, 130, 246, 0.02)' : 'var(--card-bg)'};">
         <!-- Top Badges & Actions Bar -->
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <span class="badge-tag" style="background: var(--primary-light); color: var(--primary); font-weight: 700;">
               ${q.category_icon || '📂'} ${q.category_name || 'General'}
             </span>
-            <span class="badge-tag" style="background: ${q.is_global ? 'var(--primary-light)' : 'var(--accent-light)'}; color: ${q.is_global ? 'var(--primary)' : 'var(--accent)'}; font-weight:700;">
-              ${q.is_global ? '🌐 Global' : '🏫 Private'}
+            <span class="badge-tag" style="background: ${isGlobal ? 'rgba(59, 130, 246, 0.15)' : 'rgba(168, 85, 247, 0.15)'}; color: ${isGlobal ? 'var(--primary)' : 'var(--accent)'}; font-weight:800; border: 1px solid ${isGlobal ? 'var(--primary)' : 'var(--accent)'};">
+              ${isGlobal ? '🌐 Global Master (Super Admin)' : '🏫 Private (Institute)'}
             </span>
             <span class="badge-tag" style="text-transform: capitalize; font-weight: 700; color: ${q.difficulty === 'hard' ? 'var(--danger)' : (q.difficulty === 'easy' ? 'var(--success)' : 'var(--accent)')};">
               ⚡ ${q.difficulty || 'medium'}
@@ -157,8 +313,13 @@ function renderQuestionsList(container, list) {
             ${tagBadges}
           </div>
 
-          <div class="table-action-group">
-            <button class="icon-action-btn btn-edit-q" data-id="${q.id}" title="Edit Question (Math & Image Editor)">
+          <div class="table-action-group" style="display:flex; gap:6px;">
+            ${isGlobal ? `
+              <button class="btn btn-outline btn-sm btn-dup-q" data-id="${q.id}" title="Duplicate to My Bank (Create Private Copy)" style="font-size:0.8rem; padding:4px 8px;">
+                <i class="ri-file-copy-line"></i> Duplicate to My Bank
+              </button>
+            ` : ''}
+            <button class="icon-action-btn btn-edit-q" data-id="${q.id}" title="Edit Master Question">
               <i class="ri-edit-line"></i>
             </button>
             <button class="icon-action-btn btn-danger btn-del-q" data-id="${q.id}" title="Delete Master Question">
@@ -179,12 +340,12 @@ function renderQuestionsList(container, list) {
           </div>
         ` : ''}
 
-        <!-- Question Text (English & Hindi) with Line Breaks -->
-        <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 8px; color: var(--text-main); white-space: pre-line;" class="katex-render">Q${idx + 1}. ${q.question_text_en}</div>
+        <!-- Question Text (English & Hindi) -->
+        <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 8px; color: var(--text-main); white-space: pre-line;" class="katex-render">Q${startOffset + idx + 1}. ${q.question_text_en}</div>
         ${q.question_text_hi ? `<div style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 12px; white-space: pre-line;" class="katex-render">हिंदी: ${q.question_text_hi}</div>` : ''}
         ${q.image_url ? `<div style="margin-bottom: 12px;"><img src="${q.image_url}" alt="Question Diagram" style="max-width: 100%; max-height: 220px; border-radius: 6px; border: 1px solid var(--border-color);" onerror="this.style.display='none'" /></div>` : ''}
 
-        <!-- Options Grid (Dynamic 2-6 Choices) -->
+        <!-- Options Grid -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 14px;">
           ${optsEn.map((opt, oIdx) => {
             const isCorrect = oIdx === q.correct_option_index;
@@ -209,7 +370,7 @@ function renderQuestionsList(container, list) {
           }).join('')}
         </div>
 
-        <!-- Explanation Section -->
+        <!-- Solution Explanation -->
         ${(q.explanation_en || q.explanation_hi || q.explanation_image_url) ? `
           <div style="font-size: 0.88rem; color: var(--text-muted); background: var(--bg-color); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
             <div style="font-weight: 700; color: var(--text-main); margin-bottom: 4px;">💡 Solution Explanation:</div>
@@ -224,7 +385,7 @@ function renderQuestionsList(container, list) {
 
   renderMath(listContainer);
 
-  // Attach Edit and Delete handlers
+  // Attach Handlers
   listContainer.querySelectorAll('.btn-edit-q').forEach(btn => {
     btn.addEventListener('click', () => {
       const qId = btn.dataset.id;
@@ -242,51 +403,100 @@ function renderQuestionsList(container, list) {
           await apiRequest(`/exams/questions/${qId}`, { method: 'DELETE' });
           loadData(container);
         } catch (err) {
-          alert('Error deleting master question.');
+          alert(err.message || 'Error deleting master question.');
+        }
+      }
+    });
+  });
+
+  listContainer.querySelectorAll('.btn-dup-q').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const qId = btn.dataset.id;
+      const target = cachedBankQuestions.find(q => q.id == qId);
+      if (!target) return;
+
+      if (confirm('Duplicate this Global Master question to your institute private question bank?')) {
+        try {
+          const payload = {
+            category_id: target.category_id,
+            difficulty: target.difficulty,
+            passage_text_en: target.passage_text_en || '',
+            passage_text_hi: target.passage_text_hi || '',
+            passage_image_url: target.passage_image_url || '',
+            question_text_en: target.question_text_en,
+            question_text_hi: target.question_text_hi || '',
+            image_url: target.image_url || '',
+            options_en: target.options_en || [],
+            options_hi: target.options_hi || [],
+            options_images: target.options_images || [],
+            correct_option_index: target.correct_option_index || 0,
+            explanation_en: target.explanation_en || '',
+            explanation_hi: target.explanation_hi || '',
+            explanation_image_url: target.explanation_image_url || '',
+            is_global: false,
+            tags: target.tags || (target.tag_names ? target.tag_names.split(',').map(t => t.trim()) : [])
+          };
+
+          await apiRequest('/exams/questions', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+
+          alert('Question duplicated to your Private Bank successfully!');
+          loadData(container);
+        } catch (err) {
+          alert(err.message || 'Failed to duplicate question.');
         }
       }
     });
   });
 }
 
-function applyFilters(container) {
-  const catId = container.querySelector('#filter-category').value;
-  const examId = container.querySelector('#filter-exam').value;
-  const diff = container.querySelector('#filter-difficulty').value;
-  const search = container.querySelector('#filter-search').value.toLowerCase().trim();
+function setupEvents(container) {
+  // Scope Tabs Switching
+  const scopeTabs = [
+    { id: '#scope-tab-all', scope: 'all' },
+    { id: '#scope-tab-global', scope: 'global' },
+    { id: '#scope-tab-mine', scope: 'mine' }
+  ];
 
-  let filtered = cachedBankQuestions.filter(q => {
-    if (catId && q.category_id != catId) return false;
-    if (examId && q.exam_id != examId) return false;
-    if (diff && q.difficulty !== diff) return false;
-
-    if (search) {
-      const matchEn = q.question_text_en && q.question_text_en.toLowerCase().includes(search);
-      const matchHi = q.question_text_hi && q.question_text_hi.toLowerCase().includes(search);
-      const matchExpEn = q.explanation_en && q.explanation_en.toLowerCase().includes(search);
-      const matchExpHi = q.explanation_hi && q.explanation_hi.toLowerCase().includes(search);
-      const matchPassEn = q.passage_text_en && q.passage_text_en.toLowerCase().includes(search);
-      const matchPassHi = q.passage_text_hi && q.passage_text_hi.toLowerCase().includes(search);
-      const matchTags = q.tag_names && q.tag_names.toLowerCase().includes(search);
-
-      if (!matchEn && !matchHi && !matchExpEn && !matchExpHi && !matchPassEn && !matchPassHi && !matchTags) {
-        return false;
-      }
+  scopeTabs.forEach(tabInfo => {
+    const btn = container.querySelector(tabInfo.id);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        activeScope = tabInfo.scope;
+        container.querySelectorAll('.scope-tab-btn').forEach(b => {
+          b.classList.remove('active');
+          b.style.borderBottom = 'none';
+          b.style.color = 'var(--text-muted)';
+        });
+        btn.classList.add('active');
+        btn.style.borderBottom = '3px solid var(--primary)';
+        btn.style.color = 'var(--primary)';
+        currentPage = 1;
+        loadData(container);
+      });
     }
-    return true;
   });
 
-  renderQuestionsList(container, filtered);
-}
-
-function setupEvents(container) {
-  ['#filter-category', '#filter-exam', '#filter-difficulty'].forEach(sel => {
+  ['#filter-category', '#filter-difficulty', '#filter-tag'].forEach(sel => {
     const el = container.querySelector(sel);
-    if (el) el.addEventListener('change', () => applyFilters(container));
+    if (el) el.addEventListener('change', () => {
+      currentPage = 1;
+      loadData(container);
+    });
   });
 
   const searchInp = container.querySelector('#filter-search');
-  if (searchInp) searchInp.addEventListener('input', () => applyFilters(container));
+  if (searchInp) {
+    searchInp.addEventListener('input', () => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        currentPage = 1;
+        loadData(container);
+      }, 300);
+    });
+  }
 
   const btnAdd = container.querySelector('#btn-bank-add');
   const btnBulk = container.querySelector('#btn-bank-bulk');

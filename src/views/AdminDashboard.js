@@ -17,7 +17,7 @@ export function renderAdminDashboard(navigate) {
       </div>
       <div style="display:flex; gap:12px; align-items:center;">
         <button class="btn btn-primary" id="createQuizBtn" style="display:flex; align-items:center; gap:6px; font-weight:700;">
-          <i class="ri-add-line"></i> + Create New Quiz
+          <i class="ri-add-line"></i> Create New Quiz
         </button>
       </div>
     </div>

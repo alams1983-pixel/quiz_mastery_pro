@@ -121,7 +121,9 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
   }
 
   function renderStep2() {
-    const hasTaxonomyError = taxonomyError && ((taxonomyError.missingCategories && taxonomyError.missingCategories.length > 0) || (taxonomyError.missingTags && taxonomyError.missingTags.length > 0));
+    const missingCats = (taxonomyError && taxonomyError.missingCategories) || [];
+    const missingTags = (taxonomyError && (taxonomyError.missingTags || taxonomyError.newTagsToCreate)) || [];
+    const hasCategoryError = missingCats.length > 0;
 
     return `
       <div style="margin-bottom: 20px;">
@@ -129,37 +131,40 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
           <h4 style="font-weight: 800; font-size: 1rem; color: var(--text-main);">
             Parsed Preview (${parsedQuestions.length} Questions Found)
           </h4>
-          <span class="status-badge ${hasTaxonomyError ? 'status-inactive' : 'status-active'}">
-            ${hasTaxonomyError ? '⚠️ Action Required' : 'Valid & Ready'}
+          <span class="status-badge ${hasCategoryError ? 'status-inactive' : 'status-active'}">
+            ${hasCategoryError ? '⚠️ Category Action Required' : 'Valid & Ready'}
           </span>
         </div>
 
-        ${hasTaxonomyError ? `
+        ${hasCategoryError ? `
           <div style="background: rgba(239, 68, 68, 0.1); border: 1.5px solid var(--danger); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
             <div style="display:flex; align-items:center; gap:8px; color:var(--danger); font-weight:800; font-size:0.95rem; margin-bottom:6px;">
-              <i class="ri-alert-line" style="font-size:1.2rem;"></i> Taxonomy Pre-Validation Warning
+              <i class="ri-alert-line" style="font-size:1.2rem;"></i> Missing Category Warning
             </div>
             <p style="font-size:0.85rem; color:var(--text-main); margin-bottom:10px; line-height:1.4;">
-              The uploaded file references categories or tags that <strong>do not exist</strong> in your institute taxonomy. Please create these items first in the <strong>Taxonomy Manager</strong> before proceeding.
+              The uploaded file references categories that <strong>do not exist</strong> in your institute taxonomy. Please create these categories first in the <strong>Taxonomy Manager</strong> before proceeding.
             </p>
 
-            ${taxonomyError.missingCategories && taxonomyError.missingCategories.length > 0 ? `
-              <div style="margin-bottom:8px;">
-                <span style="font-size:0.8rem; font-weight:700; color:var(--danger); display:block; margin-bottom:4px;">Missing Categories (${taxonomyError.missingCategories.length}):</span>
-                <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                  ${taxonomyError.missingCategories.map(c => `<span class="badge-tag" style="background:rgba(239, 68, 68, 0.15); color:var(--danger); font-weight:700;">📂 ${c}</span>`).join('')}
-                </div>
+            <div style="margin-bottom:8px;">
+              <span style="font-size:0.8rem; font-weight:700; color:var(--danger); display:block; margin-bottom:4px;">Missing Categories (${missingCats.length}):</span>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                ${missingCats.map(c => `<span class="badge-tag" style="background:rgba(239, 68, 68, 0.15); color:var(--danger); font-weight:700;">📂 ${c}</span>`).join('')}
               </div>
-            ` : ''}
+            </div>
+          </div>
+        ` : ''}
 
-            ${taxonomyError.missingTags && taxonomyError.missingTags.length > 0 ? `
-              <div>
-                <span style="font-size:0.8rem; font-weight:700; color:var(--danger); display:block; margin-bottom:4px;">Missing Tags (${taxonomyError.missingTags.length}):</span>
-                <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                  ${taxonomyError.missingTags.map(t => `<span class="badge-tag" style="background:rgba(239, 68, 68, 0.15); color:var(--danger); font-weight:700;">🏷️ ${t}</span>`).join('')}
-                </div>
-              </div>
-            ` : ''}
+        ${missingTags.length > 0 ? `
+          <div style="background: var(--primary-light); border: 1px solid var(--primary-border); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+            <div style="display:flex; align-items:center; gap:8px; color:var(--primary); font-weight:800; font-size:0.9rem; margin-bottom:4px;">
+              <i class="ri-price-tag-3-line"></i> New Tags Auto-Creation
+            </div>
+            <p style="font-size:0.82rem; color:var(--text-main); margin-bottom:6px;">
+              The following custom tags were found in your upload file and will be <strong>automatically added</strong> to your institute tags:
+            </p>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              ${missingTags.map(t => `<span class="badge-tag" style="background:var(--bg-color); border:1px solid var(--border-color); font-weight:700;">🏷️ ${t}</span>`).join('')}
+            </div>
           </div>
         ` : ''}
 
@@ -195,8 +200,8 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
 
       <div style="display: flex; justify-content: space-between; gap: 12px;">
         <button id="btn-back-step1" class="btn btn-outline">← Back</button>
-        <button id="btn-next-step3" class="btn btn-primary" ${hasTaxonomyError ? 'disabled title="Please create missing categories/tags first"' : ''}>
-          ${hasTaxonomyError ? '⚠️ Fix Missing Taxonomy First' : 'Proceed to Import →'}
+        <button id="btn-next-step3" class="btn btn-primary" ${hasCategoryError ? 'disabled title="Please create missing categories first"' : ''}>
+          ${hasCategoryError ? '⚠️ Fix Missing Categories First' : 'Proceed to Import →'}
         </button>
       </div>
     `;
@@ -218,7 +223,7 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
 
       <div style="display: flex; justify-content: space-between; gap: 12px;">
         <button id="btn-back-step2" class="btn btn-outline">← Back</button>
-        <button id="btn-confirm-import" class="btn btn-primary" style="flex: 1;">Execute Bulk Import (Base64 Encoded) 🚀</button>
+        <button id="btn-confirm-import" class="btn btn-primary" style="flex: 1;">Execute Bulk Import 🚀</button>
       </div>
     `;
   }

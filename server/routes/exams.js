@@ -803,13 +803,84 @@ router.post('/sections/:sectionId/questions', requireInstituteAdmin, async (req,
   }
 });
 
+// Helper function to resolve all descendant category IDs recursively for hierarchy filtering
+async function getAllCategoryDescendantIds(categoryId) {
+  if (!categoryId) return [];
+  const targetId = parseInt(categoryId, 10);
+  if (isNaN(targetId)) return [];
+
+  const [allCats] = await pool.query('SELECT id, parent_id FROM categories');
+  const descendantIds = new Set([targetId]);
+  let added = true;
+
+  while (added) {
+    added = false;
+    for (const c of allCats) {
+      if (c.parent_id && descendantIds.has(c.parent_id) && !descendantIds.has(c.id)) {
+        descendantIds.add(c.id);
+        added = true;
+      }
+    }
+  }
+  return Array.from(descendantIds);
+}
+
+// Helper function to auto-create and link tags to master question
+async function saveQuestionTags(questionId, tagsInput, instId) {
+  if (!questionId) return [];
+  let tagList = [];
+  if (Array.isArray(tagsInput)) {
+    tagList = tagsInput.map(t => typeof t === 'string' ? t.trim() : '').filter(Boolean);
+  } else if (typeof tagsInput === 'string' && tagsInput.trim()) {
+    tagList = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  await pool.query('DELETE FROM question_bank_tags WHERE question_id = ?', [questionId]);
+  const cleanTagNames = [];
+
+  for (const rawTag of tagList) {
+    const tagName = rawTag.trim();
+    if (!tagName) continue;
+    if (!cleanTagNames.includes(tagName)) cleanTagNames.push(tagName);
+
+    // 1. Try finding existing tag (case-insensitive) across global/institute tags
+    let [existing] = await pool.query('SELECT id FROM tags WHERE LOWER(name) = LOWER(?) LIMIT 1', [tagName]);
+    let tagId = null;
+
+    if (existing.length > 0) {
+      tagId = existing[0].id;
+    } else {
+      // 2. Insert with IGNORE to avoid unique constraint conflicts
+      try {
+        const [newTagRes] = await pool.query('INSERT IGNORE INTO tags (name, institute_id) VALUES (?, ?)', [tagName, instId]);
+        tagId = newTagRes.insertId;
+        if (!tagId) {
+          const [refetch] = await pool.query('SELECT id FROM tags WHERE LOWER(name) = LOWER(?) LIMIT 1', [tagName]);
+          if (refetch.length > 0) tagId = refetch[0].id;
+        }
+      } catch (insertErr) {
+        const [refetch] = await pool.query('SELECT id FROM tags WHERE LOWER(name) = LOWER(?) LIMIT 1', [tagName]);
+        if (refetch.length > 0) tagId = refetch[0].id;
+      }
+    }
+
+    if (tagId) {
+      await pool.query('INSERT IGNORE INTO question_bank_tags (question_id, tag_id) VALUES (?, ?)', [questionId, tagId]);
+    }
+  }
+
+  await pool.query('UPDATE question_bank SET tags_json = ? WHERE id = ?', [JSON.stringify(cleanTagNames), questionId]);
+  return cleanTagNames;
+}
+
 // 7a-1. Create Standalone Master Question (Master Bank Repository)
 router.post('/questions', requireInstituteAdmin, async (req, res) => {
   try {
     const {
       question_text_en, question_text_hi, options_en, options_hi, options_images,
       correct_option_index, explanation_en, explanation_hi, explanation_image_url,
-      image_url, difficulty, category_id, is_global, passage_text_en, passage_text_hi, passage_image_url
+      image_url, difficulty, category_id, is_global, passage_text_en, passage_text_hi, passage_image_url,
+      tags, tag_names
     } = req.body;
 
     if (!question_text_en || !options_en) {
@@ -856,7 +927,10 @@ router.post('/questions', requireInstituteAdmin, async (req, res) => {
       normalizeImageUrl(image_url) || null, difficulty || 'medium', finalIsGlobal
     ]);
 
-    res.status(201).json({ message: 'Question created in Master Question Bank.', questionId: result.insertId });
+    const questionId = result.insertId;
+    await saveQuestionTags(questionId, tags || tag_names, instId);
+
+    res.status(201).json({ message: 'Question created in Master Question Bank.', questionId });
   } catch (err) {
     console.error('Create Standalone Question Error:', err);
     res.status(500).json({ error: 'Error creating master question.' });
@@ -866,7 +940,7 @@ router.post('/questions', requireInstituteAdmin, async (req, res) => {
 // 7a-2. Fetch All Master Questions (For Master Question Bank & Exam Selector)
 router.get('/questions/all', requireInstituteAdmin, async (req, res) => {
   try {
-    const { exam_id, section_id, category_id, search, difficulty, scope } = req.query;
+    const { exam_id, section_id, category_id, search, difficulty, scope, tag } = req.query;
     const instId = req.user.role === 'super_admin' ? (req.query.institute_id || req.user.institute_id) : req.user.institute_id;
 
     let sql = `
@@ -895,15 +969,20 @@ router.get('/questions/all', requireInstituteAdmin, async (req, res) => {
     const params = [];
 
     if (req.user.role === 'super_admin') {
-      if (instId) {
-        sql += ` AND qb.institute_id = ?`;
+      if (scope === 'global') {
+        sql += ` AND qb.is_global = 1`;
+      } else if (scope === 'mine' && instId) {
+        sql += ` AND qb.institute_id = ? AND (qb.is_global = 0 OR qb.is_global IS NULL)`;
+        params.push(instId);
+      } else if (instId) {
+        sql += ` AND (qb.institute_id = ? OR qb.is_global = 1)`;
         params.push(instId);
       }
     } else {
       if (scope === 'global') {
         sql += ` AND qb.is_global = 1`;
       } else if (scope === 'mine') {
-        sql += ` AND qb.institute_id = ?`;
+        sql += ` AND qb.institute_id = ? AND (qb.is_global = 0 OR qb.is_global IS NULL)`;
         params.push(instId);
       } else {
         sql += ` AND (qb.institute_id = ? OR qb.is_global = 1)`;
@@ -915,36 +994,94 @@ router.get('/questions/all', requireInstituteAdmin, async (req, res) => {
       sql += ` AND es.exam_id = ?`;
       params.push(exam_id);
     }
+
+    // Hierarchy-aware category filtering (includes target category + all descendant sub-categories)
     if (category_id) {
-      sql += ` AND qb.category_id = ?`;
-      params.push(category_id);
+      const descCatIds = await getAllCategoryDescendantIds(category_id);
+      if (descCatIds.length > 0) {
+        sql += ` AND qb.category_id IN (${descCatIds.map(() => '?').join(',')})`;
+        params.push(...descCatIds);
+      }
     }
+
     if (difficulty) {
       sql += ` AND qb.difficulty = ?`;
       params.push(difficulty);
     }
+
+    if (tag) {
+      sql += ` AND qb.id IN (SELECT qbt2.question_id FROM question_bank_tags qbt2 JOIN tags t2 ON qbt2.tag_id = t2.id WHERE LOWER(t2.name) = LOWER(?))`;
+      params.push(tag.trim());
+    }
+
     if (search) {
       sql += ` AND (
         qb.question_text_en LIKE ? OR qb.question_text_hi LIKE ? OR
         qb.explanation_en LIKE ? OR qb.explanation_hi LIKE ? OR
-        p.passage_text_en LIKE ? OR p.passage_text_hi LIKE ?
+        p.passage_text_en LIKE ? OR p.passage_text_hi LIKE ? OR
+        qb.options_en_json LIKE ? OR qb.options_hi_json LIKE ? OR
+        t.name LIKE ?
       )`;
       const s = `%${search}%`;
-      params.push(s, s, s, s, s, s);
+      params.push(s, s, s, s, s, s, s, s, s);
     }
 
-    sql += ` GROUP BY qb.id ORDER BY qb.id DESC`;
+    // Parse pagination parameters
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(500, parseInt(req.query.limit, 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Build matching Count Query for total pages calculation
+    let countSql = `
+      SELECT COUNT(DISTINCT qb.id) AS total
+      FROM question_bank qb
+      LEFT JOIN categories c ON qb.category_id = c.id
+      LEFT JOIN passages p ON qb.passage_id = p.id
+      LEFT JOIN question_bank_tags qbt ON qb.id = qbt.question_id
+      LEFT JOIN tags t ON qbt.tag_id = t.id
+    `;
+    if (section_id) {
+      countSql += ` LEFT JOIN exam_section_questions esq_filter ON (qb.id = esq_filter.question_id AND esq_filter.section_id = ${parseInt(section_id, 10)})`;
+    }
+    if (exam_id) {
+      countSql += ` LEFT JOIN exam_section_questions esq ON qb.id = esq.question_id LEFT JOIN exam_sections es ON esq.section_id = es.id`;
+    }
+    countSql += ` WHERE 1=1`;
+    // The params array matches both countSql WHERE clauses and main sql WHERE clauses up to LIMIT
+    const countParams = [...params];
+
+    const [countRows] = await pool.query(countSql + sql.substring(sql.indexOf(' WHERE 1=1') + 10), countParams);
+    const totalCount = countRows[0] ? countRows[0].total : 0;
+
+    sql += ` GROUP BY qb.id ORDER BY qb.id DESC LIMIT ? OFFSET ?`;
+    params.push(limitNum, offset);
 
     const [rows] = await pool.query(sql, params);
 
-    const questions = rows.map(q => ({
-      ...q,
-      options_en: safeJSONParse(q.options_en_json),
-      options_hi: safeJSONParse(q.options_hi_json),
-      options_images: safeJSONParse(q.options_images_json)
-    }));
+    const questions = rows.map(q => {
+      const tagsArr = safeJSONParse(q.tags_json) || (q.tag_names ? q.tag_names.split(',').map(t => t.trim()) : []);
+      return {
+        ...q,
+        options_en: safeJSONParse(q.options_en_json),
+        options_hi: safeJSONParse(q.options_hi_json),
+        options_images: safeJSONParse(q.options_images_json),
+        tags: tagsArr
+      };
+    });
 
-    res.json({ questions });
+    const totalPages = Math.ceil(totalCount / limitNum) || 1;
+
+    res.json({
+      questions,
+      pagination: {
+        total: totalCount,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1
+      }
+    });
   } catch (err) {
     console.error('Fetch Master Question Bank Error:', err);
     res.status(500).json({ error: 'Error fetching master question bank.' });
@@ -958,7 +1095,8 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
     const {
       category_id, question_text_en, question_text_hi, options_en, options_hi, options_images,
       correct_option_index, explanation_en, explanation_hi, explanation_image_url, image_url,
-      passage_text_en, passage_text_hi, passage_image_url, difficulty, is_global
+      passage_text_en, passage_text_hi, passage_image_url, difficulty, is_global,
+      tags, tag_names
     } = req.body;
 
     if (!question_text_en || !options_en) {
@@ -968,22 +1106,24 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
     const normOptImgs = (Array.isArray(options_images) ? options_images : []).map(normalizeImageUrl);
     const normPImgUrl = normalizeImageUrl(passage_image_url || '');
 
+    // Check ownership
+    const [existingQ] = await pool.query('SELECT passage_id, institute_id FROM question_bank WHERE id = ?', [qId]);
+    if (existingQ.length === 0) return res.status(404).json({ error: 'Question not found.' });
+
+    const instId = existingQ[0].institute_id || req.user.institute_id || 1;
+
     // Handle passage update if present
     if (passage_text_en || normPImgUrl) {
-      const [existingQ] = await pool.query('SELECT passage_id, institute_id FROM question_bank WHERE id = ?', [qId]);
-      if (existingQ.length > 0) {
-        const instId = existingQ[0].institute_id;
-        const passId = existingQ[0].passage_id;
-        if (passId) {
-          await pool.query('UPDATE passages SET passage_text_en = ?, passage_text_hi = ?, passage_image_url = ? WHERE id = ?', [
-            passage_text_en || '', passage_text_hi || '', normPImgUrl || null, passId
-          ]);
-        } else {
-          const [pRes] = await pool.query('INSERT INTO passages (institute_id, passage_text_en, passage_text_hi, passage_image_url, created_by) VALUES (?, ?, ?, ?, ?)', [
-            instId, passage_text_en || '', passage_text_hi || '', normPImgUrl || null, req.user.id
-          ]);
-          await pool.query('UPDATE question_bank SET passage_id = ? WHERE id = ?', [pRes.insertId, qId]);
-        }
+      const passId = existingQ[0].passage_id;
+      if (passId) {
+        await pool.query('UPDATE passages SET passage_text_en = ?, passage_text_hi = ?, passage_image_url = ? WHERE id = ?', [
+          passage_text_en || '', passage_text_hi || '', normPImgUrl || null, passId
+        ]);
+      } else {
+        const [pRes] = await pool.query('INSERT INTO passages (institute_id, passage_text_en, passage_text_hi, passage_image_url, created_by) VALUES (?, ?, ?, ?, ?)', [
+          instId, passage_text_en || '', passage_text_hi || '', normPImgUrl || null, req.user.id
+        ]);
+        await pool.query('UPDATE question_bank SET passage_id = ? WHERE id = ?', [pRes.insertId, qId]);
       }
     }
 
@@ -1020,6 +1160,8 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
       qId
     ]);
 
+    await saveQuestionTags(qId, tags || tag_names, instId);
+
     res.json({ message: 'Master question updated successfully in Question Bank.' });
   } catch (err) {
     console.error('Update Master Question Error:', err);
@@ -1052,7 +1194,7 @@ router.delete('/questions/:questionId', requireInstituteAdmin, async (req, res) 
   }
 });
 
-// 7a-0. Validate Category and Tag Existence before Bulk Upload
+// 7a-0. Validate Category and Tag Existence before Bulk Upload (Only Categories are Blocking)
 router.post('/questions/validate-bulk', requireInstituteAdmin, async (req, res) => {
   try {
     let { questions, encodedPayload } = req.body;
@@ -1070,7 +1212,7 @@ router.post('/questions/validate-bulk', requireInstituteAdmin, async (req, res) 
 
     const instId = req.user.role === 'super_admin' ? (req.body.institute_id || req.user.institute_id || 1) : req.user.institute_id;
 
-    // Collect all requested category names and tag names
+    // Collect all requested category names
     const requestedCatNames = new Set();
     const requestedTagNames = new Set();
 
@@ -1081,10 +1223,7 @@ router.post('/questions/validate-bulk', requireInstituteAdmin, async (req, res) 
       }
       const tNames = q.tag_names || q.tags;
       if (tNames) {
-        let tagsList = [];
-        if (Array.isArray(tNames)) tagsList = tNames;
-        else if (typeof tNames === 'string') tagsList = tNames.split(',');
-
+        let tagsList = Array.isArray(tNames) ? tNames : (typeof tNames === 'string' ? tNames.split(',') : []);
         tagsList.forEach(t => {
           if (typeof t === 'string' && t.trim()) {
             requestedTagNames.add(t.trim().toLowerCase());
@@ -1093,7 +1232,7 @@ router.post('/questions/validate-bulk', requireInstituteAdmin, async (req, res) 
       }
     });
 
-    // 1. Fetch existing categories
+    // Fetch existing categories
     const [existingCats] = await pool.query(
       'SELECT id, name FROM categories WHERE institute_id = ? OR institute_id IS NULL OR is_global = 1',
       [instId]
@@ -1101,7 +1240,7 @@ router.post('/questions/validate-bulk', requireInstituteAdmin, async (req, res) 
     const existingCatNamesMap = new Map();
     existingCats.forEach(c => existingCatNamesMap.set(c.name.trim().toLowerCase(), c.id));
 
-    // 2. Fetch existing tags
+    // Fetch existing tags (informational notice only)
     const [existingTags] = await pool.query(
       'SELECT id, name FROM tags WHERE institute_id = ? OR institute_id IS NULL',
       [instId]
@@ -1117,26 +1256,21 @@ router.post('/questions/validate-bulk', requireInstituteAdmin, async (req, res) 
       }
     });
 
-    const missingTags = [];
+    const newTagsToCreate = [];
     requestedTagNames.forEach(tagNameLower => {
       if (!existingTagNamesMap.has(tagNameLower)) {
-        let orig = tagNameLower;
-        for (const q of questions) {
-          const rawTags = q.tag_names || q.tags;
-          let list = Array.isArray(rawTags) ? rawTags : (typeof rawTags === 'string' ? rawTags.split(',') : []);
-          const found = list.find(t => typeof t === 'string' && t.trim().toLowerCase() === tagNameLower);
-          if (found) { orig = found.trim(); break; }
-        }
-        missingTags.push(orig);
+        newTagsToCreate.push(tagNameLower);
       }
     });
 
-    const isValid = missingCategories.length === 0 && missingTags.length === 0;
+    // Only Category matching is a blocking prerequisite. New tags will be auto-created on the fly.
+    const isValid = missingCategories.length === 0;
 
     res.json({
       valid: isValid,
       missingCategories,
-      missingTags
+      newTagsToCreate,
+      missingTags: newTagsToCreate
     });
   } catch (err) {
     console.error('Validate Bulk Error:', err);
@@ -1164,14 +1298,9 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
       return res.status(400).json({ error: 'No questions provided for bulk upload.' });
     }
 
-    // Pre-load Categories and Tags maps for fast taxonomy resolution
     const [catsRows] = await pool.query('SELECT id, name FROM categories WHERE institute_id = ? OR institute_id IS NULL OR is_global = 1', [instId]);
     const catNameMap = new Map();
     catsRows.forEach(c => catNameMap.set(c.name.trim().toLowerCase(), c.id));
-
-    const [tagsRows] = await pool.query('SELECT id, name FROM tags WHERE institute_id = ? OR institute_id IS NULL', [instId]);
-    const tagNameMap = new Map();
-    tagsRows.forEach(t => tagNameMap.set(t.name.trim().toLowerCase(), t.id));
 
     let insertedCount = 0;
     const passageCache = new Map();
@@ -1182,7 +1311,6 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
       const optsEn = Array.isArray(q.options_en) ? q.options_en : (Array.isArray(q.options) ? q.options : []);
 
       if (!qEn || !optsEn || optsEn.length === 0) {
-        console.warn(`[DEBUG EXAM SERVER] Skipping Question #${i + 1} due to missing text or options:`, { qEn, optsEn, q });
         continue;
       }
 
@@ -1213,17 +1341,14 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
       const rawOptsImgs = Array.isArray(q.options_images) ? q.options_images : [];
       const optsImgs = rawOptsImgs.map(normalizeImageUrl);
       
-      // Resolve Category ID by Name if provided
       let targetCatId = category_id || q.category_id || null;
       const qCatName = q.category_name || q.category;
       if (qCatName && typeof qCatName === 'string' && catNameMap.has(qCatName.trim().toLowerCase())) {
         targetCatId = catNameMap.get(qCatName.trim().toLowerCase());
       }
 
-      // Default ownership: questions are Private (is_global = 0) unless explicitly set by Super Admin
       const finalIsGlobal = isSuper ? (is_global || q.is_global ? 1 : 0) : 0;
 
-      // 1. Insert into Master Question Bank (question_bank)
       const [qbRes] = await pool.query(`
         INSERT INTO question_bank (
           institute_id, category_id, passage_id, question_text_en, question_text_hi,
@@ -1242,19 +1367,10 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
 
       const questionId = qbRes.insertId;
 
-      // Resolve Tags and Insert into question_bank_tags
+      // Auto-save & create tags for this question
       const rawTags = q.tag_names || q.tags;
       if (rawTags) {
-        let tagList = Array.isArray(rawTags) ? rawTags : (typeof rawTags === 'string' ? rawTags.split(',') : []);
-        for (const tName of tagList) {
-          if (typeof tName === 'string' && tName.trim()) {
-            const tagKey = tName.trim().toLowerCase();
-            if (tagNameMap.has(tagKey)) {
-              const tId = tagNameMap.get(tagKey);
-              await pool.query('INSERT IGNORE INTO question_bank_tags (question_id, tag_id) VALUES (?, ?)', [questionId, tId]);
-            }
-          }
-        }
+        await saveQuestionTags(questionId, rawTags, instId);
       }
 
       // 2. Link to section if section_id provided

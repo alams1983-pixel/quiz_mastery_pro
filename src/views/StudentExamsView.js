@@ -17,7 +17,7 @@ export function renderStudentExamsView(navigate) {
       </div>
       <div style="display: flex; gap: 10px;">
         <span class="status-badge status-active" style="padding: 8px 16px; font-weight: 700;">
-          ⚡ TCS iON Engine Active
+          ⚡ Exam Engine Active
         </span>
       </div>
     </div>

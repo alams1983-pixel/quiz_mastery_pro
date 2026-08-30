@@ -1,4 +1,4 @@
-import{g as _}from"./index-Dj_OHbJk.js";function P(r){const e=document.createElement("div");e.className="container page-view",e.style.maxWidth="1050px",e.style.padding="2rem 1rem";const l=_();if(!l||l.role!=="institute_admin"&&l.role!=="admin"&&l.role!=="super_admin")return alert("Access denied. Coaching Institute Admin privileges required."),r("dashboard"),e;e.innerHTML=`
+import{g as _}from"./index-CyV29KP3.js";function P(r){const e=document.createElement("div");e.className="container page-view",e.style.maxWidth="1050px",e.style.padding="2rem 1rem";const l=_();if(!l||l.role!=="institute_admin"&&l.role!=="admin"&&l.role!=="super_admin")return alert("Access denied. Coaching Institute Admin privileges required."),r("dashboard"),e;e.innerHTML=`
     <!-- Header -->
     <div class="responsive-page-header">
       <div>

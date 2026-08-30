@@ -245,7 +245,10 @@ CREATE TABLE IF NOT EXISTS question_bank (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
-    FOREIGN KEY (passage_id) REFERENCES passages(id) ON DELETE SET NULL
+    FOREIGN KEY (passage_id) REFERENCES passages(id) ON DELETE SET NULL,
+    KEY idx_qb_inst_global (institute_id, is_global, id),
+    KEY idx_qb_cat (category_id, id),
+    KEY idx_qb_diff (difficulty)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Question Bank Tags Mapping Table
