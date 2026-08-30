@@ -5,6 +5,8 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   RecaptchaVerifier,
   signInWithPhoneNumber
 } from 'firebase/auth';
@@ -41,13 +43,43 @@ export async function registerWithEmailPassword(email, password) {
 }
 
 /**
- * Sign in with Google Provider
+ * Sign in with Google Provider (Supports Popup with automatic Redirect fallback)
  */
 export async function loginWithGoogle() {
   const provider = new GoogleAuthProvider();
-  const userCredential = await signInWithPopup(auth, provider);
-  const idToken = await userCredential.user.getIdToken();
-  return { user: userCredential.user, idToken };
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try {
+    const userCredential = await signInWithPopup(auth, provider);
+    const idToken = await userCredential.user.getIdToken();
+    return { user: userCredential.user, idToken };
+  } catch (err) {
+    if (
+      err.code === 'auth/popup-closed-by-user' ||
+      err.code === 'auth/popup-blocked' ||
+      err.code === 'auth/cancelled-popup-request'
+    ) {
+      console.warn('⚠️ Popup authentication interrupted or blocked by cross-origin policy. Falling back to Google Redirect Flow...');
+      await signInWithRedirect(auth, provider);
+      return null;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Check for pending Google Redirect authentication result on page load
+ */
+export async function checkGoogleRedirectResult() {
+  try {
+    const userCredential = await getRedirectResult(auth);
+    if (userCredential && userCredential.user) {
+      const idToken = await userCredential.user.getIdToken();
+      return { user: userCredential.user, idToken };
+    }
+  } catch (err) {
+    console.error('Google Redirect Result Error:', err);
+  }
+  return null;
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   loginWithEmailPassword,
   registerWithEmailPassword,
   loginWithGoogle,
+  checkGoogleRedirectResult,
   setupRecaptcha,
   sendPhoneOtp,
   confirmPhoneOtp
@@ -448,13 +449,36 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
     }
   });
 
+  // Check for pending Google Redirect authentication result on mount
+  setTimeout(async () => {
+    try {
+      const redirectRes = await checkGoogleRedirectResult();
+      if (redirectRes && redirectRes.idToken) {
+        const tenantSlug = currentBranding ? (currentBranding.slug || currentBranding.code) : getTenantFromURL();
+        const authData = await api.firebaseLogin({
+          idToken: redirectRes.idToken,
+          account_type: selectedAccountType,
+          institute_slug: tenantSlug
+        });
+        handleLoginResponse(authData);
+      }
+    } catch (e) {
+      console.warn('Google Redirect Check:', e);
+    }
+  }, 100);
+
   // Google OAuth Sign In Button
   if (btnGoogleAuth) {
     btnGoogleAuth.addEventListener('click', async () => {
       btnGoogleAuth.disabled = true;
       btnGoogleAuth.innerHTML = '<i class="ri-loader-4-line spin"></i> Authenticating with Google...';
       try {
-        const { idToken } = await loginWithGoogle();
+        const result = await loginWithGoogle();
+        if (!result) {
+          // Fallback redirect was initiated, browser will navigate
+          return;
+        }
+        const { idToken } = result;
         const tenantSlug = currentBranding ? (currentBranding.slug || currentBranding.code) : getTenantFromURL();
         const authData = await api.firebaseLogin({
           idToken,
