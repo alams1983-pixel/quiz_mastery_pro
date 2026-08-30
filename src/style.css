@@ -2748,14 +2748,14 @@ body[data-theme="light"] .gdpr-banner-container {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary-color), #6366f1);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  color: #ffffff !important;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.4rem;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35);
 }
 
 .gdpr-text-box {
@@ -2769,13 +2769,14 @@ body[data-theme="light"] .gdpr-banner-container {
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.01em;
+  color: var(--text-main);
 }
 
 .gdpr-banner-desc {
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.45;
-  opacity: 0.85;
+  color: var(--text-muted);
 }
 
 .gdpr-banner-actions {
@@ -2814,12 +2815,13 @@ body[data-theme="light"] .gdpr-banner-container {
 }
 
 .gdpr-btn-primary {
-  background: var(--primary-color);
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+  background: var(--primary);
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
 }
 
 .gdpr-btn-primary:hover {
+  background: var(--primary-hover);
   filter: brightness(1.1);
   transform: translateY(-1px);
 }
@@ -2851,8 +2853,8 @@ body[data-theme="light"] .gdpr-btn-secondary:hover {
 }
 
 body[data-theme="light"] .gdpr-btn-outline {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .gdpr-btn-outline:hover {
@@ -2860,7 +2862,7 @@ body[data-theme="light"] .gdpr-btn-outline {
 }
 
 body[data-theme="light"] .gdpr-btn-outline:hover {
-  background: rgba(79, 70, 229, 0.06);
+  background: var(--primary-light);
 }
 
 .gdpr-btn-link {
@@ -2953,9 +2955,9 @@ body[data-theme="light"] .gdpr-btn-outline:hover {
 }
 
 .gdpr-badge-optional {
-  background: rgba(99, 102, 241, 0.12);
-  color: var(--primary-color);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--primary-border);
 }
 
 /* Custom iOS-style Toggle Switch */
@@ -2981,7 +2983,7 @@ body[data-theme="light"] .gdpr-btn-outline:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--primary-border);
+  background-color: var(--border-color);
   transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 30px;
 }
@@ -3000,7 +3002,7 @@ body[data-theme="light"] .gdpr-btn-outline:hover {
 }
 
 .gdpr-toggle-checkbox:checked+.gdpr-toggle-label {
-  background-color: var(--primary-color);
+  background-color: var(--primary);
 }
 
 .gdpr-toggle-checkbox:checked+.gdpr-toggle-label:before {
