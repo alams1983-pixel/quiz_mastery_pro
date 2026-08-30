@@ -1,4 +1,4 @@
-import{r as p}from"./index-OqYRO6st.js";function C(){const t=document.createElement("div");return t.className="view-container fade-in",t.innerHTML=`
+import{r as p}from"./index-DVSz0i_J.js";function C(){const t=document.createElement("div");return t.className="view-container fade-in",t.innerHTML=`
     <div class="saas-header">
       <div class="saas-title-group">
         <h1>Super Admin Console 👑</h1>

@@ -1,20 +1,4 @@
-import { getUser, setUser } from '../services/api.js';
-import { ConsentManager } from '../services/ConsentManager.js';
-import { openCookiePreferencesModal } from '../components/CookieConsentModal.js';
-
-export function renderStudentSettingsView(navigate) {
-  const container = document.createElement('div');
-  container.className = 'container page-view';
-  container.style.maxWidth = '1000px';
-  container.style.padding = '2rem 1rem';
-
-  const user = getUser();
-  if (!user) {
-    navigate('login');
-    return container;
-  }
-
-  container.innerHTML = `
+import{g as v,C as f,o as h}from"./index-DVSz0i_J.js";function w(l){const r=document.createElement("div");r.className="container page-view",r.style.maxWidth="1000px",r.style.padding="2rem 1rem";const t=v();if(!t)return l("login"),r;r.innerHTML=`
     <!-- Page Header -->
     <div class="responsive-page-header">
       <div>
@@ -36,7 +20,7 @@ export function renderStudentSettingsView(navigate) {
       <!-- Left Column: Teacher Branding Links & Class Enrollments -->
       <div style="display: flex; flex-direction: column; gap: 1.5rem; grid-column: span 1;">
         
-        ${user && (user.role === 'institute_admin' || user.role === 'admin' || user.role === 'super_admin') ? `
+        ${t&&(t.role==="institute_admin"||t.role==="admin"||t.role==="super_admin")?`
           <!-- Teacher Portal Branding Settings Link Card -->
           <div class="card" style="padding: 1.5rem; border-radius: 12px; background: var(--primary-light); border: 1px solid var(--primary-border); box-shadow: var(--shadow-sm);">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
@@ -54,9 +38,9 @@ export function renderStudentSettingsView(navigate) {
               ✏️ Manage Portal Branding & URLs
             </button>
           </div>
-        ` : ''}
+        `:""}
 
-        ${!user || user.role === 'user' ? `
+        ${!t||t.role==="user"?`
           <!-- Institute Batches & Class Enrollments Card (Students Only) -->
           <div class="card" style="padding: 1.5rem; border-radius: 12px; background: var(--card-bg); box-shadow: var(--shadow-sm); border: 1px solid var(--border-color);">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
@@ -77,7 +61,7 @@ export function renderStudentSettingsView(navigate) {
               </div>
             </div>
           </div>
-        ` : ''}
+        `:""}
 
       </div>
 
@@ -93,19 +77,19 @@ export function renderStudentSettingsView(navigate) {
           <div style="display: flex; flex-direction: column; gap: 1rem;">
             <div>
               <label style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: var(--text-muted);">Full Name</label>
-              <div style="font-size: 1rem; font-weight: 600; color: var(--text-main); margin-top: 0.2rem;">${user.full_name || 'Student'}</div>
+              <div style="font-size: 1rem; font-weight: 600; color: var(--text-main); margin-top: 0.2rem;">${t.full_name||"Student"}</div>
             </div>
 
             <div>
               <label style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: var(--text-muted);">Email Address</label>
-              <div style="font-size: 0.95rem; color: var(--text-main); margin-top: 0.2rem;">${user.email}</div>
+              <div style="font-size: 0.95rem; color: var(--text-main); margin-top: 0.2rem;">${t.email}</div>
             </div>
 
             <div>
               <label style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: var(--text-muted);">Account Role</label>
               <div style="margin-top: 0.2rem;">
                 <span class="badge" style="background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary-border); padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; text-transform: capitalize;">
-                  ${(user.role || 'user').replace('_', ' ')}
+                  ${(t.role||"user").replace("_"," ")}
                 </span>
               </div>
             </div>
@@ -155,7 +139,7 @@ export function renderStudentSettingsView(navigate) {
             <div>
               <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); display: block;">Consent Decision Status</span>
               <span id="consent-status-pill" style="font-size: 0.78rem; color: var(--primary); font-weight: 600;">
-                ${ConsentManager.hasDecided() ? '✓ Preferences Configured' : '⚠️ Pending Decision'}
+                ${f.hasDecided()?"✓ Preferences Configured":"⚠️ Pending Decision"}
               </span>
             </div>
             <button id="btnOpenGdprSettings" class="btn btn-secondary" style="font-size: 0.85rem; padding: 6px 14px; border-radius: 6px; display: flex; align-items: center; gap: 6px;">
@@ -166,148 +150,15 @@ export function renderStudentSettingsView(navigate) {
 
       </div>
     </div>
-  `;
-
-  // Attach Event Listeners
-  const backBtn = container.querySelector('#backToDashBtn');
-  if (backBtn) {
-    backBtn.addEventListener('click', () => navigate('dashboard'));
-  }
-
-  const btnManageGdpr = container.querySelector('#btnOpenGdprSettings');
-  if (btnManageGdpr) {
-    btnManageGdpr.addEventListener('click', () => {
-      openCookiePreferencesModal();
-    });
-  }
-
-  const goToBrandingBtn = container.querySelector('#goToCoachingBrandingBtn');
-  if (goToBrandingBtn) {
-    goToBrandingBtn.addEventListener('click', () => navigate('coaching-branding'));
-  }
-
-  // Load Batches for user's institute
-  loadInstituteBatches(container, user);
-
-  // Handle Password Change Form
-  const passwordForm = container.querySelector('#changePasswordForm');
-  passwordForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const currentPass = container.querySelector('#currentPasswordInput').value;
-    const newPass = container.querySelector('#newPasswordInput').value;
-    const confirmPass = container.querySelector('#confirmPasswordInput').value;
-    const alertDiv = container.querySelector('#passwordAlert');
-    const submitBtn = container.querySelector('#savePasswordBtn');
-
-    if (newPass !== confirmPass) {
-      alertDiv.style.display = 'block';
-      alertDiv.style.background = 'var(--danger-bg)';
-      alertDiv.style.color = 'var(--danger)';
-      alertDiv.style.border = '1px solid var(--danger-border)';
-      alertDiv.textContent = 'New password and confirmation password do not match.';
-      return;
-    }
-
-    try {
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Updating...';
-
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          currentPassword: currentPass,
-          newPassword: newPass
-        })
-      });
-
-      const data = await response.json();
-
-      alertDiv.style.display = 'block';
-      if (response.ok) {
-        alertDiv.style.background = 'var(--success-bg)';
-        alertDiv.style.color = 'var(--success)';
-        alertDiv.style.border = '1px solid var(--success-border)';
-        alertDiv.textContent = data.message || 'Password changed successfully.';
-        passwordForm.reset();
-      } else {
-        alertDiv.style.background = 'var(--danger-bg)';
-        alertDiv.style.color = 'var(--danger)';
-        alertDiv.style.border = '1px solid var(--danger-border)';
-        alertDiv.textContent = data.error || 'Failed to change password.';
-      }
-    } catch (err) {
-      alertDiv.style.display = 'block';
-      alertDiv.style.background = 'var(--danger-bg)';
-      alertDiv.style.color = 'var(--danger)';
-      alertDiv.style.border = '1px solid var(--danger-border)';
-      alertDiv.textContent = 'Error connecting to server. Please try again.';
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Update Password';
-    }
-  });
-
-  return container;
-}
-
-async function loadInstituteBatches(container, user) {
-  const batchesContainer = container.querySelector('#studentBatchesListContainer');
-  if (!batchesContainer) return;
-
-  const token = localStorage.getItem('token');
-  let instId = user ? user.institute_id : null;
-
-  if (!instId) {
-    try {
-      const res = await fetch('/api/institutes/my-enrollments', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.enrollments && data.enrollments.length > 0) {
-          instId = data.enrollments[0].id;
-        }
-      }
-    } catch (e) {}
-  }
-
-  if (!instId) {
-    batchesContainer.innerHTML = `
+  `;const c=r.querySelector("#backToDashBtn");c&&c.addEventListener("click",()=>l("dashboard"));const i=r.querySelector("#btnOpenGdprSettings");i&&i.addEventListener("click",()=>{h()});const s=r.querySelector("#goToCoachingBrandingBtn");s&&s.addEventListener("click",()=>l("coaching-branding")),y(r,t);const d=r.querySelector("#changePasswordForm");return d.addEventListener("submit",async g=>{g.preventDefault();const a=r.querySelector("#currentPasswordInput").value,n=r.querySelector("#newPasswordInput").value,m=r.querySelector("#confirmPasswordInput").value,e=r.querySelector("#passwordAlert"),o=r.querySelector("#savePasswordBtn");if(n!==m){e.style.display="block",e.style.background="var(--danger-bg)",e.style.color="var(--danger)",e.style.border="1px solid var(--danger-border)",e.textContent="New password and confirmation password do not match.";return}try{o.disabled=!0,o.textContent="Updating...";const p=localStorage.getItem("token"),u=await fetch("/api/auth/change-password",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${p}`},body:JSON.stringify({currentPassword:a,newPassword:n})}),b=await u.json();e.style.display="block",u.ok?(e.style.background="var(--success-bg)",e.style.color="var(--success)",e.style.border="1px solid var(--success-border)",e.textContent=b.message||"Password changed successfully.",d.reset()):(e.style.background="var(--danger-bg)",e.style.color="var(--danger)",e.style.border="1px solid var(--danger-border)",e.textContent=b.error||"Failed to change password.")}catch{e.style.display="block",e.style.background="var(--danger-bg)",e.style.color="var(--danger)",e.style.border="1px solid var(--danger-border)",e.textContent="Error connecting to server. Please try again."}finally{o.disabled=!1,o.textContent="Update Password"}}),r}async function y(l,r){const t=l.querySelector("#studentBatchesListContainer");if(!t)return;const c=localStorage.getItem("token");let i=r?r.institute_id:null;if(!i)try{const s=await fetch("/api/institutes/my-enrollments",{headers:{Authorization:`Bearer ${c}`}});if(s.ok){const d=await s.json();d.enrollments&&d.enrollments.length>0&&(i=d.enrollments[0].id)}}catch{}if(!i){t.innerHTML=`
       <div style="text-align: center; padding: 1.2rem; background: var(--app-bg); border-radius: 8px; font-size: 0.85rem; color: var(--text-muted); border: 1px solid var(--border-color);">
         You are not enrolled in any coaching institute yet.
       </div>
-    `;
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/institutes/${instId}/batches-status`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!response.ok) throw new Error('Failed loading batches');
-
-    const data = await response.json();
-    const batches = data.batches || [];
-
-    if (batches.length === 0) {
-      batchesContainer.innerHTML = `
+    `;return}try{const s=await fetch(`/api/institutes/${i}/batches-status`,{headers:{Authorization:`Bearer ${c}`}});if(!s.ok)throw new Error("Failed loading batches");const g=(await s.json()).batches||[];if(g.length===0){t.innerHTML=`
         <div style="text-align: center; padding: 1.2rem; background: var(--app-bg); border-radius: 8px; font-size: 0.85rem; color: var(--text-muted); border: 1px solid var(--border-color);">
           No batches or classes created yet for your institute.
         </div>
-      `;
-      return;
-    }
-
-    batchesContainer.innerHTML = '';
-
-    batches.forEach(b => {
-      const card = document.createElement('div');
-      card.style.cssText = `
+      `;return}t.innerHTML="",g.forEach(a=>{const n=document.createElement("div");n.style.cssText=`
         padding: 0.85rem 1rem;
         border-radius: 10px;
         border: 1px solid var(--border-color);
@@ -316,73 +167,19 @@ async function loadInstituteBatches(container, user) {
         align-items: center;
         justify-content: space-between;
         gap: 1rem;
-      `;
-
-      let statusBadge = '';
-      let actionBtn = '';
-
-      if (b.student_status === 'approved') {
-        statusBadge = `<span style="font-size: 0.8rem; background: var(--success-bg); color: var(--success); padding: 0.25rem 0.65rem; border-radius: 20px; font-weight: 700; border: 1px solid var(--success-border);">✅ Active Batch</span>`;
-      } else if (b.student_status === 'pending') {
-        statusBadge = `<span style="font-size: 0.8rem; background: rgba(245, 158, 11, 0.15); color: #d97706; padding: 0.25rem 0.65rem; border-radius: 20px; font-weight: 700; border: 1px solid rgba(245, 158, 11, 0.35);">⏳ Pending Approval</span>`;
-      } else if (b.student_status === 'rejected') {
-        statusBadge = `<span style="font-size: 0.8rem; background: var(--danger-bg); color: var(--danger); padding: 0.25rem 0.65rem; border-radius: 20px; font-weight: 700; border: 1px solid var(--danger-border);">❌ Request Rejected</span>`;
-        actionBtn = `<button class="btn btn-outline btn-sm btn-reapply" data-id="${b.id}" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">Re-Apply</button>`;
-      } else {
-        actionBtn = `<button class="btn btn-primary btn-sm btn-request-join" data-id="${b.id}" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">Request to Join</button>`;
-      }
-
-      card.innerHTML = `
+      `;let m="",e="";a.student_status==="approved"?m='<span style="font-size: 0.8rem; background: var(--success-bg); color: var(--success); padding: 0.25rem 0.65rem; border-radius: 20px; font-weight: 700; border: 1px solid var(--success-border);">✅ Active Batch</span>':a.student_status==="pending"?m='<span style="font-size: 0.8rem; background: rgba(245, 158, 11, 0.15); color: #d97706; padding: 0.25rem 0.65rem; border-radius: 20px; font-weight: 700; border: 1px solid rgba(245, 158, 11, 0.35);">⏳ Pending Approval</span>':a.student_status==="rejected"?(m='<span style="font-size: 0.8rem; background: var(--danger-bg); color: var(--danger); padding: 0.25rem 0.65rem; border-radius: 20px; font-weight: 700; border: 1px solid var(--danger-border);">❌ Request Rejected</span>',e=`<button class="btn btn-outline btn-sm btn-reapply" data-id="${a.id}" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">Re-Apply</button>`):e=`<button class="btn btn-primary btn-sm btn-request-join" data-id="${a.id}" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">Request to Join</button>`,n.innerHTML=`
         <div>
-          <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">${b.batch_name}</div>
+          <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">${a.batch_name}</div>
           <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.1rem;">
-            ${b.target_exam ? `Exam: ${b.target_exam}` : ''} ${b.batch_code ? `(Code: <code>${b.batch_code}</code>)` : ''}
+            ${a.target_exam?`Exam: ${a.target_exam}`:""} ${a.batch_code?`(Code: <code>${a.batch_code}</code>)`:""}
           </div>
         </div>
         <div>
-          ${statusBadge}
-          ${actionBtn}
+          ${m}
+          ${e}
         </div>
-      `;
-
-      const reqBtn = card.querySelector('.btn-request-join') || card.querySelector('.btn-reapply');
-      if (reqBtn) {
-        reqBtn.addEventListener('click', async () => {
-          try {
-            reqBtn.disabled = true;
-            reqBtn.textContent = 'Submitting...';
-            const reqRes = await fetch('/api/institutes/batches/join-request', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({ batch_id: b.id })
-            });
-            if (reqRes.ok) {
-              loadInstituteBatches(container, user);
-            } else {
-              const errData = await reqRes.json();
-              alert(errData.error || 'Failed to submit batch request.');
-              reqBtn.disabled = false;
-              reqBtn.textContent = 'Request to Join';
-            }
-          } catch (err) {
-            alert('Error submitting request.');
-            reqBtn.disabled = false;
-            reqBtn.textContent = 'Request to Join';
-          }
-        });
-      }
-
-      batchesContainer.appendChild(card);
-    });
-
-  } catch (err) {
-    batchesContainer.innerHTML = `
+      `;const o=n.querySelector(".btn-request-join")||n.querySelector(".btn-reapply");o&&o.addEventListener("click",async()=>{try{o.disabled=!0,o.textContent="Submitting...";const p=await fetch("/api/institutes/batches/join-request",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${c}`},body:JSON.stringify({batch_id:a.id})});if(p.ok)y(l,r);else{const u=await p.json();alert(u.error||"Failed to submit batch request."),o.disabled=!1,o.textContent="Request to Join"}}catch{alert("Error submitting request."),o.disabled=!1,o.textContent="Request to Join"}}),t.appendChild(n)})}catch{t.innerHTML=`
       <div style="color: var(--danger); font-size: 0.85rem; padding: 1rem; text-align: center; background: var(--danger-bg); border-radius: 8px; border: 1px solid var(--danger-border);">
         Failed loading institute batches.
       </div>
-    `;
-  }
-}
+    `}}export{w as renderStudentSettingsView};
