@@ -1,5 +1,22 @@
 import { getUser } from '../services/api.js';
 
+function getSubdomainURL(slugOrCode) {
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+  const port = window.location.port ? `:${window.location.port}` : '';
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')) {
+    return `${protocol}//${slugOrCode}.localhost${port}`;
+  }
+
+  const parts = hostname.split('.');
+  let rootDomain = hostname;
+  if (parts.length >= 2) {
+    rootDomain = parts.slice(-2).join('.');
+  }
+  return `${protocol}//${slugOrCode}.${rootDomain}${port}`;
+}
+
 export function renderCoachingBrandingView(navigate) {
   const container = document.createElement('div');
   container.className = 'container page-view';
@@ -288,9 +305,8 @@ export function renderCoachingBrandingView(navigate) {
         if (data.institute) {
           container.querySelector('#brand-slug').value = data.institute.slug;
           const origin = window.location.origin;
-          const port = window.location.port ? `:${window.location.port}` : '';
           const slugOrCode = data.institute.slug || data.institute.code;
-          if (subInput) subInput.value = `http://${slugOrCode}.localhost${port}`;
+          if (subInput) subInput.value = getSubdomainURL(slugOrCode);
           if (fallbackInput) fallbackInput.value = `${origin}/?institute=${slugOrCode}`;
         }
       }
@@ -324,12 +340,11 @@ async function loadBrandingData(container, user, updatePreview) {
     if (!inst) return;
 
     const origin = window.location.origin;
-    const port = window.location.port ? `:${window.location.port}` : '';
     const slugOrCode = inst.slug || inst.code;
 
     const subInput = container.querySelector('#branding-subdomain-url');
     const fallbackInput = container.querySelector('#branding-fallback-url');
-    if (subInput) subInput.value = `http://${slugOrCode}.localhost${port}`;
+    if (subInput) subInput.value = getSubdomainURL(slugOrCode);
     if (fallbackInput) fallbackInput.value = `${origin}/?institute=${slugOrCode}`;
 
     container.querySelector('#brand-name').value = inst.name || '';

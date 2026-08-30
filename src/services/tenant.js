@@ -30,7 +30,7 @@ export function getTenantFromURL() {
   const parts = hostname.split('.');
   if (parts.length > 2) {
     const sub = parts[0].toLowerCase();
-    if (sub !== 'www' && sub !== 'app') {
+    if (sub !== 'www' && sub !== 'app' && sub !== 'api') {
       return sub;
     }
   }

@@ -1,4 +1,4 @@
-import{r as q}from"./index-B0viijh0.js";import{r as x}from"./richContent-UQABmDgB.js";import{renderLeaderboardModal as E}from"./LeaderboardModal-y5SuBZY-.js";function j(C,L){const s=document.createElement("div");s.className="view-container fade-in",s.style.maxWidth="1000px",s.style.margin="0 auto",s.innerHTML=`
+import{r as q}from"./index-nPeprFIn.js";import{r as x}from"./richContent-DkIz4Stq.js";import{renderLeaderboardModal as E}from"./LeaderboardModal-BdM-Yj_n.js";function j(C,L){const s=document.createElement("div");s.className="view-container fade-in",s.style.maxWidth="1000px",s.style.margin="0 auto",s.innerHTML=`
     <!-- Header Navigation -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <button id="btn-back-dash" class="btn btn-outline btn-sm">

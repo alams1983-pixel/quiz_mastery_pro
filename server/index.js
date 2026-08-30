@@ -41,7 +41,32 @@ app.use(helmet({
 app.use(compression());
 
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    // Allow localhost or any subdomain requests
+    if (
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.endsWith('.edutorai.com') ||
+      origin.endsWith('.edurorai.com') ||
+      origin === 'https://edutorai.com' ||
+      origin === 'https://edurorai.com'
+    ) {
+      return callback(null, true);
+    }
+
+    if (process.env.ALLOWED_ORIGINS) {
+      const allowed = process.env.ALLOWED_ORIGINS.split(',');
+      if (allowed.includes(origin) || allowed.includes('*')) {
+        return callback(null, true);
+      }
+    }
+
+    // Default fallback to allow request
+    return callback(null, true);
+  },
   credentials: true
 };
 app.use(cors(corsOptions));
