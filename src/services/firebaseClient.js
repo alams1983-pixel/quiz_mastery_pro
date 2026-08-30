@@ -69,13 +69,19 @@ export async function checkGoogleRedirectResult() {
 }
 
 /**
- * Legacy/Popup Sign in with Google Provider
+ * Sign in with Google Provider (Popup Flow with Account Selector)
  */
 export async function loginWithGoogle() {
   const provider = new GoogleAuthProvider();
-  const userCredential = await signInWithPopup(auth, provider);
-  const idToken = await userCredential.user.getIdToken();
-  return { user: userCredential.user, idToken };
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try {
+    const userCredential = await signInWithPopup(auth, provider);
+    const idToken = await userCredential.user.getIdToken();
+    return { user: userCredential.user, idToken };
+  } catch (err) {
+    console.error('🔴 Firebase loginWithGoogle popup error:', err.code, err.message);
+    throw err;
+  }
 }
 
 /**

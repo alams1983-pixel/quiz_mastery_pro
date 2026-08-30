@@ -471,17 +471,30 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
     }
   }, 100);
 
-  // Google OAuth Sign In Button (Uses Redirect Flow)
+  // Google OAuth Sign In Button (Popup Flow)
   if (btnGoogleAuth) {
     btnGoogleAuth.addEventListener('click', async () => {
       btnGoogleAuth.disabled = true;
-      btnGoogleAuth.innerHTML = '<i class="ri-loader-4-line spin"></i> Redirecting to Google...';
+      btnGoogleAuth.innerHTML = '<i class="ri-loader-4-line spin"></i> Authenticating with Google...';
       try {
-        sessionStorage.setItem('google_auth_account_type', selectedAccountType);
-        await loginWithGoogleRedirect();
+        const result = await loginWithGoogle();
+        if (!result || !result.idToken) return;
+        
+        const tenantSlug = currentBranding ? (currentBranding.slug || currentBranding.code) : getTenantFromURL();
+        const authData = await api.firebaseLogin({
+          idToken: result.idToken,
+          account_type: selectedAccountType,
+          institute_slug: tenantSlug
+        });
+        handleLoginResponse(authData);
       } catch (err) {
-        console.error('🔴 Google Redirect Initiation Error:', err);
-        alert(err.message || 'Failed to initiate Google Sign-In.');
+        console.error('🔴 Detailed Google Popup Auth Error:', err);
+        if (err.code === 'auth/popup-closed-by-user') {
+          console.warn('ℹ️ Google Sign-In popup was closed by user or cross-domain policy.');
+        } else {
+          alert(err.message || 'Google Sign-In failed.');
+        }
+      } finally {
         btnGoogleAuth.disabled = false;
         btnGoogleAuth.innerHTML = '<i class="ri-google-fill" style="color: #ea4335; font-size: 1.2rem;"></i> Sign in with Google';
       }
