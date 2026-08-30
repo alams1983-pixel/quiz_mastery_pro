@@ -1,4 +1,4 @@
-import{a as P,r as H,e as M,g as R,b as z,c as U,_ as G}from"./index-DVSz0i_J.js";import{p as F,a as V}from"./csvJsonParser-Cmc2jVv8.js";function I({initialQuestion:x,onSave:f,onCancel:w}){const t=document.createElement("div");t.className="math-editor-grid",t.style.display="grid",t.style.gridTemplateColumns="1fr 1fr",t.style.gap="20px";const p=x||{question_text:"",options:["","","",""],correct_answer_index:0,explanation:""};t.innerHTML=`
+import{a as P,r as H,e as M,g as R,b as z,c as U,_ as G}from"./index-7hSgpPgK.js";import{p as F,a as V}from"./csvJsonParser-Cmc2jVv8.js";function I({initialQuestion:x,onSave:f,onCancel:w}){const t=document.createElement("div");t.className="math-editor-grid",t.style.display="grid",t.style.gridTemplateColumns="1fr 1fr",t.style.gap="20px";const p=x||{question_text:"",options:["","","",""],correct_answer_index:0,explanation:""};t.innerHTML=`
     <!-- Left Pane: Inputs -->
     <div style="display:flex; flex-direction:column; gap:12px;">
       <h3 style="font-weight:700; font-size:1.1rem;">✍️ Question Editor</h3>

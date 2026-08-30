@@ -2,6 +2,7 @@ import { api, setToken, setUser, apiRequest } from '../services/api.js';
 import { getTenantFromURL, fetchTenantBranding, applyTenantTheme } from '../services/tenant.js';
 import { renderEnrollmentModal } from '../components/EnrollmentModal.js';
 import { createModal } from '../components/Modal.js';
+import { setupPasswordToggles } from '../services/passwordToggle.js';
 import {
   loginWithEmailPassword,
   registerWithEmailPassword,
@@ -547,6 +548,8 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
       alert(err.message);
     }
   });
+
+  setupPasswordToggles(container);
 
   return container;
 }

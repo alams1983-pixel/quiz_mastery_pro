@@ -1,6 +1,7 @@
 import { getUser, setUser } from '../services/api.js';
 import { ConsentManager } from '../services/ConsentManager.js';
 import { openCookiePreferencesModal } from '../components/CookieConsentModal.js';
+import { setupPasswordToggles } from '../services/passwordToggle.js';
 
 export function renderStudentSettingsView(navigate) {
   const container = document.createElement('div');
@@ -251,6 +252,8 @@ export function renderStudentSettingsView(navigate) {
       submitBtn.textContent = 'Update Password';
     }
   });
+
+  setupPasswordToggles(container);
 
   return container;
 }

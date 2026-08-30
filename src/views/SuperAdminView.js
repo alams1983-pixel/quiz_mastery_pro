@@ -1,4 +1,5 @@
 import { apiRequest } from '../services/api.js';
+import { setupPasswordToggles } from '../services/passwordToggle.js';
 
 export function renderSuperAdminView() {
   const container = document.createElement('div');
@@ -169,6 +170,7 @@ export function renderSuperAdminView() {
 
   // Attach event listeners and load data
   setTimeout(() => {
+    setupPasswordToggles(container);
     setupSuperAdminEvents(container);
     loadSuperAdminData(container);
   }, 0);
