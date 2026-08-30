@@ -108,7 +108,7 @@ window.addEventListener('popstate', (e) => {
     navigate(e.state.view, e.state.params || {}, { skipPush: true });
   } else {
     // 3. No previous app view in stack -> Confirmation prompt to prevent accidental app closure
-    const confirmExit = confirm('Do you want to exit Quiz Mastery Pro application?');
+    const confirmExit = confirm('Do you want to exit EdutorAi Pro application?');
     if (!confirmExit) {
       history.pushState({ view: currentView, params: currentExtraParams }, '');
     } else {

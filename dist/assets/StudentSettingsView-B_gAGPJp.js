@@ -1,4 +1,4 @@
-import{g as y,C as h,o as v}from"./index-Cwis2mjw.js";function w(l){const e=document.createElement("div");e.className="container page-view",e.style.maxWidth="1000px",e.style.padding="2rem 1rem";const r=y();if(!r)return l("login"),e;e.innerHTML=`
+import{g as y,C as h,o as v}from"./index-OqYRO6st.js";function w(l){const e=document.createElement("div");e.className="container page-view",e.style.maxWidth="1000px",e.style.padding="2rem 1rem";const r=y();if(!r)return l("login"),e;e.innerHTML=`
     <!-- Page Header -->
     <div class="responsive-page-header">
       <div>

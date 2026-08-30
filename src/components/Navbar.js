@@ -36,9 +36,9 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
     <aside class="app-sidebar" id="appSidebar">
       <!-- Sidebar Brand Header -->
       <div class="sidebar-brand" id="brandClick">
-        <div class="brand-logo-icon">Q</div>
+        <div class="brand-logo-icon">E</div>
         <div class="brand-text">
-          <span class="brand-title">Quiz Mastery</span>
+          <span class="brand-title">EdutorAi</span>
           <span class="brand-sub">PRO SAAS</span>
         </div>
       </div>
@@ -170,7 +170,7 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
 
           <div class="breadcrumb-container">
             <i class="ri-home-4-line breadcrumb-icon"></i>
-            <span class="breadcrumb-root">Quiz Mastery Pro</span>
+            <span class="breadcrumb-root">EdutorAi Pro</span>
           </div>
         </div>
 

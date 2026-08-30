@@ -77,7 +77,7 @@ export function renderQuizView(quizId, customData, navigate) {
       <!-- 3. COMPLETION SCREEN -->
       <div id="completionScreen" style="display:none; text-align:center; padding:20px 0;">
         <div style="font-size:3.5rem; margin-bottom:8px;">🎉</div>
-        <h2 style="font-size:2rem; font-weight:700; margin-bottom:6px;">Quiz Mastery Complete!</h2>
+        <h2 style="font-size:2rem; font-weight:700; margin-bottom:6px;">EdutorAi Pro Practice Complete!</h2>
         <p style="color:var(--text-muted); font-size:1rem; margin-bottom:20px;">
           You have mastered every question according to your required repetition target.
         </p>

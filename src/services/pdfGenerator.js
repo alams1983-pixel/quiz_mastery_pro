@@ -43,7 +43,7 @@ export async function generateQuizPDFReport({ user, quiz, attempt, questions }) 
   container.innerHTML = `
     <div style="border-bottom: 3px solid #4f46e5; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
       <div>
-        <h1 style="margin: 0; color: #4f46e5; font-size: 24px;">📘 EdutorAI Quiz Portal</h1>
+        <h1 style="margin: 0; color: #4f46e5; font-size: 24px;">📘 EdutorAi Pro Portal</h1>
         <p style="margin: 4px 0 0 0; color: #64748b; font-size: 14px;">Official Quiz Performance & Practice Activity Report</p>
       </div>
       <div style="text-align: right;">
@@ -104,7 +104,7 @@ export async function generateQuizPDFReport({ user, quiz, attempt, questions }) 
     </table>
 
     <div style="margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 16px; text-align: center; color: #94a3b8; font-size: 12px;">
-      EdutorAI Quiz Portal — Practice & Mastery Learning System — Confidential & Verified Report
+      EdutorAi Pro Portal — Practice & Mastery Learning System — Confidential & Verified Report
     </div>
   `;
 
