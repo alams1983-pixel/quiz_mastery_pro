@@ -19,7 +19,7 @@ export async function initDatabase() {
     await pool.query('SELECT 1');
     console.log('✅ Database connection verified.');
 
-    // 2. Automatically ensure missing columns exist on existing production tables
+    // 2. Automatically ensure missing tables and columns exist on existing production databases
     const addColumnSafely = async (table, column, definition) => {
       try {
         const [cols] = await pool.query(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, [column]);
@@ -32,13 +32,47 @@ export async function initDatabase() {
       }
     };
 
+    // Ensure missing tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS institute_memberships (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        institute_id INT NOT NULL,
+        user_id INT NOT NULL,
+        role ENUM('institute_admin', 'teacher', 'student') NOT NULL DEFAULT 'student',
+        status ENUM('active', 'inactive') DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_user_institute (institute_id, user_id),
+        FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Ensure missing columns across existing production tables
     await addColumnSafely('institutes', 'slug', 'VARCHAR(255) UNIQUE NULL');
     await addColumnSafely('institutes', 'primary_color', "VARCHAR(20) DEFAULT '#0d9488'");
     await addColumnSafely('institutes', 'secondary_color', "VARCHAR(20) DEFAULT '#7c3aed'");
     await addColumnSafely('institutes', 'welcome_title', 'VARCHAR(255) NULL');
     await addColumnSafely('institutes', 'welcome_subtitle', 'TEXT NULL');
+    await addColumnSafely('institutes', 'banner_url', 'VARCHAR(500) NULL');
+    await addColumnSafely('institutes', 'allow_global_content', 'BOOLEAN DEFAULT TRUE');
     await addColumnSafely('institutes', 'logo_url', 'VARCHAR(500) NULL');
+
+    await addColumnSafely('users', 'firebase_uid', 'VARCHAR(255) UNIQUE NULL');
+    await addColumnSafely('users', 'phone_number', 'VARCHAR(20) NULL');
+    await addColumnSafely('users', 'reset_token', 'VARCHAR(255) NULL');
+    await addColumnSafely('users', 'reset_expires', 'DATETIME NULL');
+
+    await addColumnSafely('batches', 'code', 'VARCHAR(50) NULL');
+    await addColumnSafely('batches', 'target_exam', 'VARCHAR(150) NULL');
+
     await addColumnSafely('student_batches', 'status', "ENUM('pending', 'approved', 'rejected') DEFAULT 'approved'");
+    await addColumnSafely('quizzes', 'is_all_batches', 'BOOLEAN DEFAULT TRUE');
+    await addColumnSafely('quizzes', 'is_published', 'BOOLEAN DEFAULT TRUE');
+    await addColumnSafely('exams', 'is_all_batches', 'BOOLEAN DEFAULT TRUE');
+    await addColumnSafely('exams', 'allow_section_switch', 'BOOLEAN DEFAULT TRUE');
+    await addColumnSafely('exams', 'category_id', 'INT NULL');
+    await addColumnSafely('question_bank', 'is_global', 'BOOLEAN DEFAULT FALSE');
+    await addColumnSafely('question_bank', 'tags_json', 'JSON NULL');
 
     // 3. Seed Super Admin
     const superAdminEmail = 'alams1983@gmail.com';
