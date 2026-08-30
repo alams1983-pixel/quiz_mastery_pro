@@ -19,6 +19,27 @@ export async function initDatabase() {
     await pool.query('SELECT 1');
     console.log('✅ Database connection verified.');
 
+    // 2. Automatically ensure missing columns exist on existing production tables
+    const addColumnSafely = async (table, column, definition) => {
+      try {
+        const [cols] = await pool.query(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, [column]);
+        if (cols.length === 0) {
+          await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+          console.log(`  ➕ Auto-added missing column ${column} to ${table}`);
+        }
+      } catch (err) {
+        console.warn(`  ⚠️ Column check ${column} on ${table}:`, err.message);
+      }
+    };
+
+    await addColumnSafely('institutes', 'slug', 'VARCHAR(255) UNIQUE NULL');
+    await addColumnSafely('institutes', 'primary_color', "VARCHAR(20) DEFAULT '#0d9488'");
+    await addColumnSafely('institutes', 'secondary_color', "VARCHAR(20) DEFAULT '#7c3aed'");
+    await addColumnSafely('institutes', 'welcome_title', 'VARCHAR(255) NULL');
+    await addColumnSafely('institutes', 'welcome_subtitle', 'TEXT NULL');
+    await addColumnSafely('institutes', 'logo_url', 'VARCHAR(500) NULL');
+    await addColumnSafely('student_batches', 'status', "ENUM('pending', 'approved', 'rejected') DEFAULT 'approved'");
+
     // 3. Seed Super Admin
     const superAdminEmail = 'alams1983@gmail.com';
     const [existingSuper] = await pool.query('SELECT id FROM users WHERE email = ?', [superAdminEmail]);
