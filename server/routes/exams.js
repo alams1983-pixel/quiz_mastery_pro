@@ -291,10 +291,46 @@ router.get('/', optionalAuth, async (req, res) => {
       params.push(user.institute_id || -1);
     }
 
-    sql += ` GROUP BY e.id ORDER BY e.created_at DESC`;
+    // Parse pagination parameters
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 12));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Count Total Matching Query
+    let countSql = `
+      SELECT COUNT(DISTINCT e.id) AS total
+      FROM exams e
+      JOIN institutes i ON e.institute_id = i.id
+      LEFT JOIN categories c ON e.category_id = c.id
+      LEFT JOIN exam_sections es ON es.exam_id = e.id
+      LEFT JOIN exam_section_questions esq ON esq.section_id = es.id
+      LEFT JOIN exam_tags et ON et.exam_id = e.id
+      LEFT JOIN tags t ON et.tag_id = t.id
+      LEFT JOIN exam_batches eb ON eb.exam_id = e.id
+      WHERE 1=1
+    `;
+    const countParams = [...params];
+
+    const [countRows] = await pool.query(countSql + sql.substring(sql.indexOf(' WHERE 1=1') + 10), countParams);
+    const totalCount = countRows[0] ? countRows[0].total : 0;
+
+    sql += ` GROUP BY e.id ORDER BY e.created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limitNum, offset);
 
     const [exams] = await pool.query(sql, params);
-    res.json({ exams });
+    const totalPages = Math.ceil(totalCount / limitNum) || 1;
+
+    res.json({
+      exams,
+      pagination: {
+        total: totalCount,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1
+      }
+    });
   } catch (err) {
     console.error('Fetch Exams Error:', err);
     res.status(500).json({ error: 'Error fetching exams.' });

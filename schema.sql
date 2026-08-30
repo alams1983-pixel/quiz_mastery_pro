@@ -27,7 +27,9 @@ CREATE TABLE IF NOT EXISTS users (
     reset_token VARCHAR(255) NULL,
     reset_expires DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_user_institute FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE SET NULL
+    CONSTRAINT fk_user_institute FOREIGN KEY (institute_id) REFERENCES institutes(id) ON DELETE SET NULL,
+    KEY idx_users_inst_role (institute_id, role, id),
+    KEY idx_users_search (full_name(50))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. Categories Table (Hierarchical tree structure)

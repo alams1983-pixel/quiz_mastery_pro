@@ -128,11 +128,11 @@ async function renderInstituteStudentAnalytics(container, navigate) {
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">🏫 Institute Student Performance Analytics</h1>
       <p style="color: var(--text-muted); font-size: 0.95rem;">
-        Monitor class performance trends, exam attempt metrics across students, and individual student progress.
+        Comprehensive student roster, accuracy percentiles, total CBT test attempts, and overall class performance metrics.
       </p>
     </div>
 
-    <!-- Institute Overview Cards -->
+    <!-- Overview Metrics Cards -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px;">
       <div class="card" style="padding: 20px;">
         <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Enrolled Students</span>
@@ -173,21 +173,33 @@ async function renderInstituteStudentAnalytics(container, navigate) {
           </tbody>
         </table>
       </div>
+
+      <!-- Roster Pagination Container -->
+      <div id="rosterPaginationContainer" style="margin-top: 20px;"></div>
     </div>
   `;
 
+  loadRosterData(container);
+}
+
+async function loadRosterData(container) {
+  showLoadingOverlay('Loading Student Roster Analytics...', 'Fetching performance stats...');
+
   try {
-    const res = await apiRequest('/analytics/institute-student-analytics');
-    container.querySelector('#instTotalStudents').textContent = res.totalStudents || 0;
-    container.querySelector('#instTotalExamAttempts').textContent = res.totalExamAttempts || 0;
+    const res = await apiRequest(`/analytics/institute-student-analytics?page=${instRosterPage}&limit=${instRosterLimit}`);
+    container.querySelector('#instTotalStudents').textContent = (res.totalStudents || 0).toLocaleString();
+    container.querySelector('#instTotalExamAttempts').textContent = (res.totalExamAttempts || 0).toLocaleString();
     container.querySelector('#instClassAvgAcc').textContent = (res.classAvgAccuracy || 0) + '%';
     container.querySelector('#instClassAvgScore').textContent = res.classAvgScore || '0.00';
+
+    instRosterMeta = res.pagination || { total: (res.students || []).length, page: instRosterPage, limit: instRosterLimit, totalPages: 1 };
 
     const tbody = container.querySelector('#instRosterTbody');
     const students = res.students || [];
 
     if (students.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">No student attempt records found in your institute yet.</td></tr>';
+      renderRosterPagination(container);
       return;
     }
 
@@ -206,9 +218,73 @@ async function renderInstituteStudentAnalytics(container, navigate) {
         <td style="font-size: 0.82rem; color: var(--text-muted);">${s.last_active ? new Date(s.last_active).toLocaleString() : 'Never'}</td>
       </tr>
     `).join('');
+
+    renderRosterPagination(container);
   } catch (err) {
     console.error('Institute Analytics Error:', err);
+  } finally {
+    hideLoadingOverlay();
   }
+}
+
+function renderRosterPagination(container) {
+  const pageBox = container.querySelector('#rosterPaginationContainer');
+  if (!pageBox) return;
+
+  const { total, page, limit, totalPages } = instRosterMeta;
+  const startItem = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(total, page * limit);
+
+  pageBox.innerHTML = `
+    <div class="pagination-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 18px; background:var(--card-bg); border-radius:var(--radius-md); border:1px solid var(--border-color);">
+      <div style="font-size:0.88rem; color:var(--text-muted); font-weight:600;">
+        Showing <strong style="color:var(--text-main);">${startItem}–${endItem}</strong> of <strong style="color:var(--primary);">${total.toLocaleString()}</strong> roster students
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm btn-page-first" ${page <= 1 ? 'disabled' : ''} style="font-weight:700;">
+          <i class="ri-skip-left-line"></i> First
+        </button>
+        <button class="btn btn-outline btn-sm btn-page-prev" ${page <= 1 ? 'disabled' : ''} style="font-weight:700;">
+          <i class="ri-arrow-left-s-line"></i> Prev
+        </button>
+
+        <span style="font-size:0.88rem; font-weight:700; color:var(--text-main); padding:0 4px;">
+          Page ${page} of ${totalPages}
+        </span>
+
+        <button class="btn btn-outline btn-sm btn-page-next" ${page >= totalPages ? 'disabled' : ''} style="font-weight:700;">
+          Next <i class="ri-arrow-right-s-line"></i>
+        </button>
+        <button class="btn btn-outline btn-sm btn-page-last" ${page >= totalPages ? 'disabled' : ''} style="font-weight:700;">
+          Last <i class="ri-skip-right-line"></i>
+        </button>
+
+        <select class="form-control select-page-limit" style="width: auto; padding: 4px 8px; font-size: 0.85rem; font-weight:700;">
+          <option value="20" ${limit === 20 ? 'selected' : ''}>20 / page</option>
+          <option value="50" ${limit === 50 ? 'selected' : ''}>50 / page</option>
+        </select>
+      </div>
+    </div>
+  `;
+
+  pageBox.querySelector('.btn-page-first')?.addEventListener('click', () => {
+    if (instRosterPage > 1) { instRosterPage = 1; loadRosterData(container); }
+  });
+  pageBox.querySelector('.btn-page-prev')?.addEventListener('click', () => {
+    if (instRosterPage > 1) { instRosterPage--; loadRosterData(container); }
+  });
+  pageBox.querySelector('.btn-page-next')?.addEventListener('click', () => {
+    if (instRosterPage < totalPages) { instRosterPage++; loadRosterData(container); }
+  });
+  pageBox.querySelector('.btn-page-last')?.addEventListener('click', () => {
+    if (instRosterPage < totalPages) { instRosterPage = totalPages; loadRosterData(container); }
+  });
+  pageBox.querySelector('.select-page-limit')?.addEventListener('change', (e) => {
+    instRosterLimit = parseInt(e.target.value, 10) || 20;
+    instRosterPage = 1;
+    loadRosterData(container);
+  });
 }
 
 // =========================================================================

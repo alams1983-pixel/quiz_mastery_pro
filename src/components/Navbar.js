@@ -1,4 +1,5 @@
 import { getUser, logout } from '../services/api.js';
+import { openCookiePreferencesModal } from './CookieConsentModal.js';
 
 export function renderNavbar(currentView, navigate, extraParams = {}) {
   const user = getUser();
@@ -127,6 +128,11 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
 
       <!-- Bottom User Profile & Sign Out Bar -->
       <div class="sidebar-footer">
+        <button class="sidebar-nav-item" id="sidePrivacyCookies" style="margin-bottom: 6px;">
+          <i class="ri-shield-keyhole-line nav-icon" style="color: var(--primary-color);"></i>
+          <span class="nav-label">Privacy & Cookies</span>
+        </button>
+
         ${user ? `
           <div class="user-profile-widget">
             <div class="user-avatar">${user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}</div>
@@ -259,10 +265,19 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
   if (sideLogin) sideLogin.addEventListener('click', () => navTo('login'));
 
   const sideLogout = shell.querySelector('#sideLogout');
-  if (sideLogout) sideLogout.addEventListener('click', () => {
+  if (sideLogout) shell.querySelector('#sideLogout').addEventListener('click', () => {
     logout();
     navTo('dashboard');
   });
+
+  const sidePrivacy = shell.querySelector('#sidePrivacyCookies');
+  if (sidePrivacy) {
+    sidePrivacy.addEventListener('click', () => {
+      sidebar.classList.remove('mobile-open');
+      overlay.classList.remove('active');
+      openCookiePreferencesModal();
+    });
+  }
 
   // Theme Handler
   const themeBtn = shell.querySelector('#themeToggleBtn');

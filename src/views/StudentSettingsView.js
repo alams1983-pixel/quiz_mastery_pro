@@ -1,4 +1,6 @@
 import { getUser, setUser } from '../services/api.js';
+import { openCookiePreferencesModal } from '../components/CookieConsentModal.js';
+import { ConsentManager } from '../services/ConsentManager.js';
 
 export function renderStudentSettingsView(navigate) {
   const container = document.createElement('div');
@@ -140,6 +142,28 @@ export function renderStudentSettingsView(navigate) {
           </form>
         </div>
 
+        <!-- GDPR Privacy & Cookie Storage Settings Card -->
+        <div class="card" style="padding: 1.5rem; border-radius: 12px; background: var(--card-bg, #ffffff); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid var(--border-color, #e5e7eb); margin-top: 1.5rem;">
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-color, #111827); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            🛡️ Privacy & Cookie Storage Controls
+          </h3>
+          <p style="color: var(--muted-text, #6b7280); font-size: 0.88rem; margin-bottom: 1.25rem; line-height: 1.45;">
+            Control your data privacy preferences under GDPR & ePrivacy regulations. View and manage optional storage categories (functional UI choices, performance metrics, and marketing tags).
+          </p>
+
+          <div style="background: var(--bg-color, #f8fafc); padding: 12px 16px; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--primary-border, #e2e8f0); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main, #1e293b); display: block;">Consent Decision Status</span>
+              <span id="consent-status-pill" style="font-size: 0.78rem; color: var(--primary-color, #4f46e5); font-weight: 600;">
+                ${ConsentManager.hasDecided() ? '✓ Preferences Configured' : '⚠️ Pending Decision'}
+              </span>
+            </div>
+            <button id="btnOpenGdprSettings" class="btn btn-secondary" style="font-size: 0.85rem; padding: 6px 14px; border-radius: 6px; display: flex; align-items: center; gap: 6px;">
+              <i class="ri-settings-4-line"></i> Manage Preferences
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   `;
@@ -148,6 +172,13 @@ export function renderStudentSettingsView(navigate) {
   const backBtn = container.querySelector('#backToDashBtn');
   if (backBtn) {
     backBtn.addEventListener('click', () => navigate('dashboard'));
+  }
+
+  const btnManageGdpr = container.querySelector('#btnOpenGdprSettings');
+  if (btnManageGdpr) {
+    btnManageGdpr.addEventListener('click', () => {
+      openCookiePreferencesModal();
+    });
   }
 
   const goToBrandingBtn = container.querySelector('#goToCoachingBrandingBtn');

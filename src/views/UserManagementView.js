@@ -1,6 +1,14 @@
-import { api, getUser } from '../services/api.js';
+import { api } from '../services/api.js';
+import { showLoadingOverlay, hideLoadingOverlay } from '../components/LoadingOverlayModal.js';
+
+let currentPage = 1;
+let currentLimit = 20;
+let paginationMeta = { total: 0, page: 1, limit: 20, totalPages: 1 };
+let searchDebounceTimer = null;
 
 export function renderUserManagementView(navigate) {
+  currentPage = 1;
+
   const container = document.createElement('div');
   container.className = 'view-container fade-in';
 
@@ -12,7 +20,7 @@ export function renderUserManagementView(navigate) {
           👑 User Role Control & Access Management
         </h1>
         <p style="color: var(--text-muted); font-size: 0.95rem;">
-          Platform-wide user management. Assign administrator permissions, adjust user roles, and monitor active accounts.
+          Platform-wide user management. Assign administrator permissions, adjust user roles, and monitor active accounts with server-side pagination.
         </p>
       </div>
       <span class="role-badge super_admin" style="font-size: 0.9rem; padding: 6px 14px;">
@@ -56,7 +64,7 @@ export function renderUserManagementView(navigate) {
             <option value="admin">Quiz Admin</option>
             <option value="user">Student / User</option>
           </select>
-          <input type="text" id="userSearchInput" class="form-input" placeholder="🔍 Search name or email..." style="width: 260px; font-size: 0.88rem;" />
+          <input type="text" id="userSearchInput" class="form-input" placeholder="🔍 Search name, email, phone..." style="width: 260px; font-size: 0.88rem;" />
         </div>
       </div>
 
@@ -81,49 +89,51 @@ export function renderUserManagementView(navigate) {
           </tbody>
         </table>
       </div>
+
+      <!-- Bottom Pagination Container -->
+      <div id="usersPaginationContainer" style="margin-top: 20px;"></div>
     </div>
   `;
 
-  setTimeout(() => {
-    loadUserManagementData(container);
-  }, 0);
-
+  loadUserManagementData(container);
+  setupFilterEvents(container);
   return container;
 }
 
-let cachedUsersList = [];
-
 async function loadUserManagementData(container) {
+  const roleVal = container.querySelector('#roleFilter')?.value || '';
+  const searchVal = container.querySelector('#userSearchInput')?.value.trim() || '';
+
+  showLoadingOverlay('Loading User Accounts...', 'Fetching users & role statistics...');
+
   try {
-    const res = await api.getUsers();
-    cachedUsersList = res.users || [];
-
-    // Calculate role breakdown
-    let countSuper = 0;
-    let countInst = 0;
-    let countAdmin = 0;
-    let countUser = 0;
-
-    cachedUsersList.forEach(u => {
-      if (u.role === 'super_admin') countSuper++;
-      else if (u.role === 'institute_admin') countInst++;
-      else if (u.role === 'admin') countAdmin++;
-      else countUser++;
+    const res = await api.getUsers({
+      page: currentPage,
+      limit: currentLimit,
+      role: roleVal,
+      search: searchVal
     });
 
-    container.querySelector('#statTotalUsers').textContent = cachedUsersList.length;
-    container.querySelector('#statSuperAdmins').textContent = countSuper;
-    container.querySelector('#statInstituteAdmins').textContent = countInst;
-    container.querySelector('#statQuizAdmins').textContent = countAdmin;
-    container.querySelector('#statStudents').textContent = countUser;
+    const usersList = res.users || [];
+    const stats = res.stats || {};
+    paginationMeta = res.pagination || { total: usersList.length, page: currentPage, limit: currentLimit, totalPages: 1 };
 
-    renderUsersTable(container, cachedUsersList);
-    setupFilterEvents(container);
+    // Update Metric Cards
+    container.querySelector('#statTotalUsers').textContent = (stats.total || 0).toLocaleString();
+    container.querySelector('#statSuperAdmins').textContent = (stats.super_admin || 0).toLocaleString();
+    container.querySelector('#statInstituteAdmins').textContent = (stats.institute_admin || 0).toLocaleString();
+    container.querySelector('#statQuizAdmins').textContent = (stats.admin || 0).toLocaleString();
+    container.querySelector('#statStudents').textContent = (stats.user || 0).toLocaleString();
+
+    renderUsersTable(container, usersList);
+    renderUserPagination(container);
   } catch (err) {
     const tbody = container.querySelector('#usersTableBody');
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: var(--danger);">Error loading users: ${err.message}</td></tr>`;
     }
+  } finally {
+    hideLoadingOverlay();
   }
 }
 
@@ -174,23 +184,85 @@ function renderUsersTable(container, list) {
   });
 }
 
+function renderUserPagination(container) {
+  const pageBox = container.querySelector('#usersPaginationContainer');
+  if (!pageBox) return;
+
+  const { total, page, limit, totalPages } = paginationMeta;
+  const startItem = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(total, page * limit);
+
+  pageBox.innerHTML = `
+    <div class="pagination-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 18px; background:var(--card-bg); border-radius:var(--radius-md); border:1px solid var(--border-color);">
+      <div style="font-size:0.88rem; color:var(--text-muted); font-weight:600;">
+        Showing <strong style="color:var(--text-main);">${startItem}–${endItem}</strong> of <strong style="color:var(--primary);">${total.toLocaleString()}</strong> users
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm btn-page-first" ${page <= 1 ? 'disabled' : ''} style="font-weight:700;">
+          <i class="ri-skip-left-line"></i> First
+        </button>
+        <button class="btn btn-outline btn-sm btn-page-prev" ${page <= 1 ? 'disabled' : ''} style="font-weight:700;">
+          <i class="ri-arrow-left-s-line"></i> Prev
+        </button>
+
+        <span style="font-size:0.88rem; font-weight:700; color:var(--text-main); padding:0 4px;">
+          Page ${page} of ${totalPages}
+        </span>
+
+        <button class="btn btn-outline btn-sm btn-page-next" ${page >= totalPages ? 'disabled' : ''} style="font-weight:700;">
+          Next <i class="ri-arrow-right-s-line"></i>
+        </button>
+        <button class="btn btn-outline btn-sm btn-page-last" ${page >= totalPages ? 'disabled' : ''} style="font-weight:700;">
+          Last <i class="ri-skip-right-line"></i>
+        </button>
+
+        <select class="form-control select-page-limit" style="width: auto; padding: 4px 8px; font-size: 0.85rem; font-weight:700;">
+          <option value="20" ${limit === 20 ? 'selected' : ''}>20 / page</option>
+          <option value="50" ${limit === 50 ? 'selected' : ''}>50 / page</option>
+          <option value="100" ${limit === 100 ? 'selected' : ''}>100 / page</option>
+        </select>
+      </div>
+    </div>
+  `;
+
+  pageBox.querySelector('.btn-page-first')?.addEventListener('click', () => {
+    if (currentPage > 1) { currentPage = 1; loadUserManagementData(container); }
+  });
+  pageBox.querySelector('.btn-page-prev')?.addEventListener('click', () => {
+    if (currentPage > 1) { currentPage--; loadUserManagementData(container); }
+  });
+  pageBox.querySelector('.btn-page-next')?.addEventListener('click', () => {
+    if (currentPage < totalPages) { currentPage++; loadUserManagementData(container); }
+  });
+  pageBox.querySelector('.btn-page-last')?.addEventListener('click', () => {
+    if (currentPage < totalPages) { currentPage = totalPages; loadUserManagementData(container); }
+  });
+  pageBox.querySelector('.select-page-limit')?.addEventListener('change', (e) => {
+    currentLimit = parseInt(e.target.value, 10) || 20;
+    currentPage = 1;
+    loadUserManagementData(container);
+  });
+}
+
 function setupFilterEvents(container) {
   const searchInput = container.querySelector('#userSearchInput');
   const roleFilter = container.querySelector('#roleFilter');
 
-  function applyFilters() {
-    const query = searchInput.value.toLowerCase().trim();
-    const selectedRole = roleFilter.value;
-
-    const filtered = cachedUsersList.filter(u => {
-      if (selectedRole && u.role !== selectedRole) return false;
-      if (query && !(u.full_name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query))) return false;
-      return true;
+  if (roleFilter) {
+    roleFilter.addEventListener('change', () => {
+      currentPage = 1;
+      loadUserManagementData(container);
     });
-
-    renderUsersTable(container, filtered);
   }
 
-  if (searchInput) searchInput.addEventListener('input', applyFilters);
-  if (roleFilter) roleFilter.addEventListener('change', applyFilters);
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        currentPage = 1;
+        loadUserManagementData(container);
+      }, 300);
+    });
+  }
 }

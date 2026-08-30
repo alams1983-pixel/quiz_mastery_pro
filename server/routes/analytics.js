@@ -195,7 +195,11 @@ router.get('/institute-student-analytics', requireInstituteAdmin, async (req, re
       WHERE u.institute_id = ? AND u.role = 'user'
     `, [instId]);
 
-    // Student performance roster
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Student performance roster (Paginated)
     const [students] = await pool.query(`
       SELECT u.id, u.full_name, u.email, u.phone_number, u.created_at,
              COUNT(DISTINCT ea.id) as exams_completed,
@@ -208,7 +212,11 @@ router.get('/institute-student-analytics', requireInstituteAdmin, async (req, re
       WHERE u.institute_id = ? AND u.role = 'user'
       GROUP BY u.id
       ORDER BY exams_completed DESC, avg_accuracy DESC
-    `, [instId]);
+      LIMIT ? OFFSET ?
+    `, [instId, limitNum, offset]);
+
+    const totalStudentsCount = overall[0].total_students || 0;
+    const totalPages = Math.ceil(totalStudentsCount / limitNum) || 1;
 
     // Exam-by-exam summary for this institute
     const [examSummary] = await pool.query(`
@@ -230,7 +238,15 @@ router.get('/institute-student-analytics', requireInstituteAdmin, async (req, re
       classAvgAccuracy: Math.round(overall[0].class_avg_accuracy || 0),
       classAvgScore: parseFloat(overall[0].class_avg_score || 0).toFixed(2),
       students,
-      examSummary
+      examSummary,
+      pagination: {
+        total: totalStudentsCount,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1
+      }
     });
   } catch (err) {
     console.error('Institute Analytics Error:', err);

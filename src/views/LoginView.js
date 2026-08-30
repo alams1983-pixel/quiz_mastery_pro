@@ -1,6 +1,7 @@
-import { api, setToken, setUser } from '../services/api.js';
+import { api, setToken, setUser, apiRequest } from '../services/api.js';
 import { getTenantFromURL, fetchTenantBranding, applyTenantTheme } from '../services/tenant.js';
 import { renderEnrollmentModal } from '../components/EnrollmentModal.js';
+import { createModal } from '../components/Modal.js';
 import {
   loginWithEmailPassword,
   registerWithEmailPassword,
@@ -204,6 +205,68 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
     }
   };
 
+  const promptTeacherOnboardingModal = (user, token, onComplete) => {
+    const form = document.createElement('form');
+    form.style.cssText = 'display: flex; flex-direction: column; gap: 14px; margin-top: 6px;';
+    form.innerHTML = `
+      <div style="background: rgba(79, 70, 229, 0.05); padding: 14px; border-radius: 8px; border-left: 4px solid var(--primary, #4f46e5); margin-bottom: 4px;">
+        <p style="font-size: 0.9rem; color: var(--text-color, #111827); margin: 0; line-height: 1.45;">
+          🎉 Welcome! Complete your coaching setup to generate your dedicated online exam portal & student URLs.
+        </p>
+      </div>
+
+      <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+        <label class="form-label" style="font-weight: 700; font-size: 0.9rem; color: var(--text-color, #111827);">🏫 Coaching / Institute Name *</label>
+        <input type="text" id="onboard-coaching-name" class="form-control" placeholder="e.g. Apex Physics Academy, Rahul Sir Classes" required style="padding: 10px 12px; font-size: 0.95rem; border-radius: 6px; border: 1px solid var(--border-color, #d1d5db);">
+      </div>
+
+      <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+        <label class="form-label" style="font-weight: 700; font-size: 0.9rem; color: var(--text-color, #111827);">👤 Teacher / Owner Full Name *</label>
+        <input type="text" id="onboard-teacher-name" class="form-control" value="${user.full_name || ''}" placeholder="e.g. Prof. Rahul Sharma" required style="padding: 10px 12px; font-size: 0.95rem; border-radius: 6px; border: 1px solid var(--border-color, #d1d5db);">
+      </div>
+
+      <button type="submit" id="btn-submit-onboard" class="btn btn-primary" style="padding: 12px; font-weight: 800; font-size: 0.95rem; justify-content: center; margin-top: 6px;">
+        🚀 Launch My Coaching Portal
+      </button>
+    `;
+
+    const modal = createModal({
+      title: '🏫 Setup Coaching Institute',
+      content: form,
+      onClose: () => {}
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const coachingName = form.querySelector('#onboard-coaching-name').value.trim();
+      const teacherName = form.querySelector('#onboard-teacher-name').value.trim();
+      const submitBtn = form.querySelector('#btn-submit-onboard');
+
+      if (!coachingName || !teacherName) return;
+
+      try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Setting up Coaching Portal...';
+
+        const res = await apiRequest('/auth/complete-teacher-onboarding', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            coaching_name: coachingName,
+            teacher_name: teacherName
+          })
+        });
+
+        modal.close();
+        if (onComplete) onComplete(res);
+      } catch (err) {
+        alert(err.message || 'Error setting up coaching portal.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 Launch My Coaching Portal';
+      }
+    });
+  };
+
   const handleLoginResponse = (data) => {
     if (data.requires_enrollment_confirmation) {
       renderEnrollmentModal({
@@ -228,6 +291,16 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
 
     setToken(data.token);
     setUser(data.user);
+
+    // If Google/Phone sign-in for teacher portal requires coaching setup
+    if (data.requires_teacher_setup || (selectedAccountType === 'teacher' && !data.user.institute_id && data.user.role !== 'super_admin')) {
+      promptTeacherOnboardingModal(data.user, data.token, (resData) => {
+        setToken(resData.token);
+        setUser(resData.user);
+        redirectUserByRole(resData.user);
+      });
+      return;
+    }
 
     redirectUserByRole(data.user);
   };

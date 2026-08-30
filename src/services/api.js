@@ -120,7 +120,10 @@ export const api = {
   getMe: () => request('/auth/me'),
   forgotPassword: (body) => request('/auth/forgot-password', { method: 'POST', body }),
   resetPassword: (body) => request('/auth/reset-password', { method: 'POST', body }),
-  getUsers: () => request('/auth/users'),
+  getUsers: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/auth/users${query ? `?${query}` : ''}`);
+  },
   updateUserRole: (id, role) => request(`/auth/users/${id}/role`, { method: 'PUT', body: { role } }),
 
   // Categories

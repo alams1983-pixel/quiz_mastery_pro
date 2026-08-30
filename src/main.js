@@ -6,6 +6,7 @@ import { renderStudentExamsView } from './views/StudentExamsView.js';
 import { renderStudentQuizzesView } from './views/StudentQuizzesView.js';
 import { getUser } from './services/api.js';
 import { getTenantFromURL, fetchTenantBranding, applyTenantTheme } from './services/tenant.js';
+import { initCookieBanner } from './components/CookieConsentModal.js';
 
 const app = document.querySelector('#app');
 
@@ -17,6 +18,9 @@ let currentExtraParams = {};
 // Apply saved theme
 const savedTheme = localStorage.getItem('theme') || 'light';
 document.body.setAttribute('data-theme', savedTheme);
+
+// Initialize GDPR Cookie Banner
+initCookieBanner();
 
 // Auto-check tenant subdomain or URL param on initial load
 async function initTenantContext() {

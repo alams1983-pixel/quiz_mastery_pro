@@ -1,4 +1,5 @@
 import { apiRequest } from '../services/api.js';
+import { showLoadingOverlay, hideLoadingOverlay } from '../components/LoadingOverlayModal.js';
 
 export function renderStudentExamsView(navigate) {
   const container = document.createElement('div');
@@ -41,9 +42,13 @@ export function renderStudentExamsView(navigate) {
         Loading CBT exams...
       </div>
     </div>
+
+    <!-- Scroll Loading Indicator -->
+    <div id="infinite-scroll-loader" style="display: none; text-align: center; padding: 20px; font-weight: 700; color: var(--primary);">
+      ⏳ Loading more exam series...
+    </div>
   `;
 
-  // Attach state & handlers
   setTimeout(() => {
     setupStudentExams(container, navigate);
   }, 0);
@@ -56,8 +61,14 @@ async function setupStudentExams(container, navigate) {
   const tabAttended = container.querySelector('#tab-student-attended');
   const tabExpired = container.querySelector('#tab-student-expired');
   const content = container.querySelector('#student-exams-content');
+  const scrollLoader = container.querySelector('#infinite-scroll-loader');
 
   let activeTab = 'live';
+  let currentPage = 1;
+  let currentLimit = 12;
+  let paginationMeta = { hasNextPage: false };
+  let isLoadingMore = false;
+
   let allExams = [];
   let myAttempts = [];
 
@@ -87,20 +98,59 @@ async function setupStudentExams(container, navigate) {
   tabExpired.addEventListener('click', () => setActiveTab('expired'));
 
   async function loadData() {
+    showLoadingOverlay('Loading Online Examination Center...', 'Fetching exam series & test attempts...');
+
     try {
       const [examsRes, attemptsRes] = await Promise.all([
-        apiRequest('/exams').catch(() => ({ exams: [] })),
+        apiRequest(`/exams?page=${currentPage}&limit=${currentLimit}`).catch(() => ({ exams: [] })),
         apiRequest('/exams/my-attempts/history').catch(() => ({ attempts: [] }))
       ]);
 
       allExams = examsRes.exams || [];
+      paginationMeta = examsRes.pagination || { hasNextPage: false };
       myAttempts = attemptsRes.attempts || [];
 
       renderContent();
     } catch (err) {
       content.innerHTML = `<div style="color:var(--danger); padding:20px;">Error loading exams: ${err.message}</div>`;
+    } finally {
+      hideLoadingOverlay();
     }
   }
+
+  async function loadMoreExams() {
+    if (isLoadingMore || !paginationMeta.hasNextPage) return;
+    isLoadingMore = true;
+
+    if (scrollLoader) scrollLoader.style.display = 'block';
+
+    try {
+      const examsRes = await apiRequest(`/exams?page=${currentPage + 1}&limit=${currentLimit}`).catch(() => ({ exams: [] }));
+      const newExams = examsRes.exams || [];
+
+      if (newExams.length > 0) {
+        currentPage++;
+        allExams.push(...newExams);
+        paginationMeta = examsRes.pagination || { hasNextPage: false };
+        renderContent();
+      } else {
+        paginationMeta.hasNextPage = false;
+      }
+    } catch (err) {
+      console.error('Error lazy loading more exams:', err);
+    } finally {
+      isLoadingMore = false;
+      if (scrollLoader) scrollLoader.style.display = 'none';
+    }
+  }
+
+  // Infinite Scroll Listener
+  window.addEventListener('scroll', () => {
+    if (isLoadingMore || !paginationMeta.hasNextPage || activeTab !== 'live') return;
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 400) {
+      loadMoreExams();
+    }
+  });
 
   function renderContent() {
     const now = new Date();
@@ -159,64 +209,58 @@ async function setupStudentExams(container, navigate) {
           <div class="card" style="padding: 40px; text-align: center; color: var(--text-muted);">
             <i class="ri-task-line" style="font-size: 2.5rem; color: var(--success); display: block; margin-bottom: 12px;"></i>
             <h3>No Completed Exams Found</h3>
-            <p style="font-size: 0.9rem; margin-top: 6px;">Exams you complete will appear here with detailed scorecard analysis.</p>
+            <p style="font-size: 0.9rem; margin-top: 6px;">You haven't completed any exam submissions yet.</p>
           </div>
         `;
         return;
       }
 
       content.innerHTML = `
-        <div class="table-wrap">
-          <table class="custom-table mobile-card-table" style="width: 100%;">
-            <thead>
-              <tr>
-                <th>Exam Title</th>
-                <th>Attempt Date</th>
-                <th>Score</th>
-                <th>Accuracy</th>
-                <th>Status</th>
-                <th>Scorecard</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${myAttempts.map(att => `
-                <tr>
-                  <td data-label="Exam Title" style="font-weight: 700;">${att.exam_title || 'CBT Mock Test'}</td>
-                  <td data-label="Attempt Date" style="font-size: 0.85rem; color: var(--text-muted);">${new Date(att.start_time).toLocaleString()}</td>
-                  <td data-label="Score" style="font-weight: 800; color: var(--primary);">${att.total_score} Marks</td>
-                  <td data-label="Accuracy" style="font-weight: 700;">${att.accuracy_pct}%</td>
-                  <td data-label="Status"><span class="status-badge status-active">${att.status}</span></td>
-                  <td data-label="Scorecard">
-                    <button class="btn btn-sm btn-outline btn-view-analysis" data-id="${att.id}" style="font-weight: 700;" title="Scorecard Analysis" aria-label="Scorecard Analysis">
-                      <i class="ri-bar-chart-2-line"></i> <span class="btn-text-desktop">Scorecard Analysis</span>
-                    </button>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          ${myAttempts.map(a => `
+            <div class="card" style="padding: 20px 24px; display: flex !important; flex-direction: row !important; justify-content: space-between !important; align-items: center !important; text-align: left !important; border-left: 4px solid var(--success); background: var(--card-bg); flex-wrap: wrap; gap: 16px;">
+              <div style="display: flex; gap: 16px; align-items: center;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(34, 197, 94, 0.12); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+                  <i class="ri-checkbox-circle-fill"></i>
+                </div>
+                <div style="text-align: left;">
+                  <h4 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 4px; color: var(--text-main);">${a.exam_title || 'CBT Mock Test'}</h4>
+                  <div style="display: flex; gap: 10px; align-items: center; font-size: 0.84rem; color: var(--text-muted); flex-wrap: wrap;">
+                    <span>📅 Submitted: ${new Date(a.submitted_at || a.created_at).toLocaleString()}</span>
+                    <span class="badge-tag" style="background: rgba(34, 197, 94, 0.12); color: var(--success); font-weight: 700;">Completed</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 20px; align-items: center; margin-left: auto;">
+                <div style="text-align: right;">
+                  <div style="font-size: 1.2rem; font-weight: 800; color: var(--success);">${parseFloat(a.total_score || 0).toFixed(1)} Marks</div>
+                  <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted);">${parseFloat(a.accuracy_pct || 0).toFixed(1)}% Accuracy</div>
+                </div>
+                <button class="btn btn-primary btn-sm btn-view-report" data-id="${a.id}" style="font-weight: 700; padding: 10px 18px; display: inline-flex; align-items: center; gap: 6px;">
+                  View Scorecard <i class="ri-bar-chart-fill"></i>
+                </button>
+              </div>
+            </div>
+          `).join('')}
         </div>
       `;
 
-      content.querySelectorAll('.btn-view-analysis').forEach(btn => {
+      content.querySelectorAll('.btn-view-report').forEach(btn => {
         btn.addEventListener('click', () => {
           navigate('exam-analysis', { attemptId: btn.dataset.id });
         });
       });
 
     } else if (activeTab === 'expired') {
-      const expiredExams = allExams.filter(e => {
-        if (!e.is_published) return false;
-        if (e.scheduled_end && new Date(e.scheduled_end) < now) return true;
-        return false;
-      });
+      const expiredExams = allExams.filter(e => e.scheduled_end && new Date(e.scheduled_end) < now);
 
       if (expiredExams.length === 0) {
         content.innerHTML = `
           <div class="card" style="padding: 40px; text-align: center; color: var(--text-muted);">
-            <i class="ri-time-line" style="font-size: 2.5rem; color: var(--text-muted); display: block; margin-bottom: 12px;"></i>
+            <i class="ri-time-line" style="font-size: 2.5rem; color: var(--danger); display: block; margin-bottom: 12px;"></i>
             <h3>No Expired Exams</h3>
-            <p style="font-size: 0.9rem; margin-top: 6px;">Past scheduled exams that have ended will be archived here.</p>
+            <p style="font-size: 0.9rem; margin-top: 6px;">All available exam series are currently active.</p>
           </div>
         `;
         return;
@@ -225,16 +269,9 @@ async function setupStudentExams(container, navigate) {
       content.innerHTML = `
         <div class="grid">
           ${expiredExams.map(e => `
-            <div class="card" style="padding: 20px; opacity: 0.85;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-                <span class="badge-tag">${e.exam_type}</span>
-                <span class="badge-tag" style="background: var(--danger-bg); color: var(--danger); font-weight: 700;">Expired</span>
-              </div>
-              <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 6px;">${e.title}</h3>
-              <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px; flex: 1;">${e.description || 'Past Online CBT Test.'}</p>
-              <div style="font-size: 0.8rem; color: var(--text-muted); background: var(--bg-color); padding: 8px 12px; border-radius: 6px;">
-                Ended: ${e.scheduled_end ? new Date(e.scheduled_end).toLocaleString() : 'Past Exam'}
-              </div>
+            <div class="card" style="padding: 20px; opacity: 0.8;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 6px;">${e.title}</h3>
+              <p style="font-size: 0.85rem; color: var(--danger); font-weight: 700;">Expired on: ${new Date(e.scheduled_end).toLocaleString()}</p>
             </div>
           `).join('')}
         </div>

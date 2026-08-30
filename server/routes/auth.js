@@ -241,15 +241,17 @@ router.post('/firebase-login', async (req, res) => {
       let instituteId = null;
 
       if (isTeacher) {
-        const instName = coaching_name ? coaching_name.trim() : `${displayName}'s Coaching`;
-        const instCode = generateInstituteCode(instName.substring(0, 3).toUpperCase());
-        const instSlug = await generateUniqueSlug(pool, instName);
+        if (coaching_name && coaching_name.trim()) {
+          const instName = coaching_name.trim();
+          const instCode = generateInstituteCode(instName.substring(0, 3).toUpperCase());
+          const instSlug = await generateUniqueSlug(pool, instName);
 
-        const [instResult] = await pool.query(
-          'INSERT INTO institutes (name, code, slug, contact_email) VALUES (?, ?, ?, ?)',
-          [instName, instCode, instSlug, email || '']
-        );
-        instituteId = instResult.insertId;
+          const [instResult] = await pool.query(
+            'INSERT INTO institutes (name, code, slug, contact_email) VALUES (?, ?, ?, ?)',
+            [instName, instCode, instSlug, email || '']
+          );
+          instituteId = instResult.insertId;
+        }
       } else {
         const lookupParam = institute_slug || institute_code;
         if (lookupParam) {
@@ -323,6 +325,8 @@ router.post('/firebase-login', async (req, res) => {
     }
 
     const activeInstId = (targetInstitute && targetInstitute.id) ? targetInstitute.id : user.institute_id;
+    const isTeacherRole = user.role === 'institute_admin' || account_type === 'teacher';
+    const requiresTeacherSetup = isTeacherRole && !activeInstId;
 
     const token = jwt.sign(
       { id: user.id, full_name: user.full_name, email: user.email, role: user.role, institute_id: activeInstId },
@@ -333,6 +337,7 @@ router.post('/firebase-login', async (req, res) => {
     res.json({
       message: 'Firebase login successful.',
       token,
+      requires_teacher_setup: requiresTeacherSetup,
       user: {
         id: user.id,
         full_name: user.full_name,
@@ -344,6 +349,63 @@ router.post('/firebase-login', async (req, res) => {
   } catch (err) {
     console.error('Firebase Login Error:', err);
     res.status(500).json({ error: err.message || 'Server error during Firebase login.' });
+  }
+});
+
+// Complete Teacher Onboarding (Setup Coaching & Owner Name after Google/Phone login)
+router.post('/complete-teacher-onboarding', requireAuth, async (req, res) => {
+  try {
+    const { coaching_name, teacher_name } = req.body;
+    if (!coaching_name || !coaching_name.trim()) {
+      return res.status(400).json({ error: 'Coaching / Institute name is required.' });
+    }
+
+    const cleanCoaching = coaching_name.trim();
+    const cleanTeacher = teacher_name ? teacher_name.trim() : req.user.full_name;
+
+    const instCode = generateInstituteCode(cleanCoaching.substring(0, 3).toUpperCase());
+    const instSlug = await generateUniqueSlug(pool, cleanCoaching);
+
+    const [instResult] = await pool.query(
+      'INSERT INTO institutes (name, code, slug, contact_email) VALUES (?, ?, ?, ?)',
+      [cleanCoaching, instCode, instSlug, req.user.email || '']
+    );
+    const instituteId = instResult.insertId;
+
+    // Update user profile to institute_admin role & link institute_id
+    await pool.query(
+      'UPDATE users SET full_name = ?, role = "institute_admin", institute_id = ? WHERE id = ?',
+      [cleanTeacher, instituteId, req.user.id]
+    );
+
+    // Create institute_memberships record
+    await pool.query(`
+      INSERT INTO institute_memberships (institute_id, user_id, role)
+      VALUES (?, ?, 'institute_admin')
+      ON DUPLICATE KEY UPDATE role = 'institute_admin', status = 'active'
+    `, [instituteId, req.user.id]);
+
+    const updatedUser = {
+      ...req.user,
+      full_name: cleanTeacher,
+      role: 'institute_admin',
+      institute_id: instituteId
+    };
+
+    const token = jwt.sign(
+      { id: updatedUser.id, full_name: updatedUser.full_name, email: updatedUser.email, role: updatedUser.role, institute_id: updatedUser.institute_id },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Coaching portal setup completed successfully!',
+      token,
+      user: updatedUser
+    });
+  } catch (err) {
+    console.error('Teacher Onboarding Error:', err);
+    res.status(500).json({ error: err.message || 'Server error during coaching setup.' });
   }
 });
 
@@ -523,18 +585,71 @@ router.put('/change-password', requireAuth, async (req, res) => {
   }
 });
 
-// 6. Super Admin: List All Users
+// 6. Super Admin: List All Users (Paginated & Filtered)
 router.get('/users', requireSuperAdmin, async (req, res) => {
   try {
-    const [users] = await pool.query(`
-      SELECT u.id, u.full_name, u.email, u.role, u.institute_id, u.created_at,
+    const { page, limit, role, search } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
+
+    // 1. Fetch Role Breakdown Stats
+    const [statsRows] = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(IF(role = 'super_admin', 1, 0)) as super_admin,
+        SUM(IF(role = 'institute_admin', 1, 0)) as institute_admin,
+        SUM(IF(role = 'admin', 1, 0)) as admin,
+        SUM(IF(role = 'user', 1, 0)) as user
+      FROM users
+    `);
+    const stats = statsRows[0] || { total: 0, super_admin: 0, institute_admin: 0, admin: 0, user: 0 };
+
+    // 2. Build Count & Data Queries with filters
+    let whereSql = ` WHERE 1=1`;
+    const params = [];
+
+    if (role) {
+      whereSql += ` AND u.role = ?`;
+      params.push(role);
+    }
+
+    if (search) {
+      whereSql += ` AND (u.full_name LIKE ? OR u.email LIKE ? OR u.phone_number LIKE ?)`;
+      const s = `%${search.trim()}%`;
+      params.push(s, s, s);
+    }
+
+    const [countRows] = await pool.query(`SELECT COUNT(DISTINCT u.id) AS total FROM users u ${whereSql}`, params);
+    const filteredTotal = countRows[0] ? countRows[0].total : 0;
+
+    let dataSql = `
+      SELECT u.id, u.full_name, u.email, u.phone_number, u.role, u.institute_id, u.created_at,
              i.name as institute_name
       FROM users u
       LEFT JOIN institutes i ON u.institute_id = i.id
+      ${whereSql}
       ORDER BY u.created_at DESC
-    `);
-    res.json({ users });
+      LIMIT ? OFFSET ?
+    `;
+
+    const [users] = await pool.query(dataSql, [...params, limitNum, offset]);
+    const totalPages = Math.ceil(filteredTotal / limitNum) || 1;
+
+    res.json({
+      users,
+      stats,
+      pagination: {
+        total: filteredTotal,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1
+      }
+    });
   } catch (err) {
+    console.error('Error listing users:', err);
     res.status(500).json({ error: 'Error listing users.' });
   }
 });
