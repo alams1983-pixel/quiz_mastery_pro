@@ -212,20 +212,20 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
     const form = document.createElement('form');
     form.style.cssText = 'display: flex; flex-direction: column; gap: 14px; margin-top: 6px;';
     form.innerHTML = `
-      <div style="background: rgba(79, 70, 229, 0.05); padding: 14px; border-radius: 8px; border-left: 4px solid var(--primary, #4f46e5); margin-bottom: 4px;">
-        <p style="font-size: 0.9rem; color: var(--text-color, #111827); margin: 0; line-height: 1.45;">
+      <div style="background: var(--primary-light); padding: 14px; border-radius: 8px; border-left: 4px solid var(--primary); margin-bottom: 4px;">
+        <p style="font-size: 0.9rem; color: var(--text-main); margin: 0; line-height: 1.45;">
           🎉 Welcome! Complete your coaching setup to generate your dedicated online exam portal & student URLs.
         </p>
       </div>
 
       <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
-        <label class="form-label" style="font-weight: 700; font-size: 0.9rem; color: var(--text-color, #111827);">🏫 Coaching / Institute Name *</label>
-        <input type="text" id="onboard-coaching-name" class="form-control" placeholder="e.g. Apex Physics Academy, Rahul Sir Classes" required style="padding: 10px 12px; font-size: 0.95rem; border-radius: 6px; border: 1px solid var(--border-color, #d1d5db);">
+        <label class="form-label" style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">🏫 Coaching / Institute Name *</label>
+        <input type="text" id="onboard-coaching-name" class="form-control" placeholder="e.g. Apex Physics Academy, Rahul Sir Classes" required style="padding: 10px 12px; font-size: 0.95rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);">
       </div>
 
       <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
-        <label class="form-label" style="font-weight: 700; font-size: 0.9rem; color: var(--text-color, #111827);">👤 Teacher / Owner Full Name *</label>
-        <input type="text" id="onboard-teacher-name" class="form-control" value="${user.full_name || ''}" placeholder="e.g. Prof. Rahul Sharma" required style="padding: 10px 12px; font-size: 0.95rem; border-radius: 6px; border: 1px solid var(--border-color, #d1d5db);">
+        <label class="form-label" style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">👤 Teacher / Owner Full Name *</label>
+        <input type="text" id="onboard-teacher-name" class="form-control" value="${user.full_name || ''}" placeholder="e.g. Prof. Rahul Sharma" required style="padding: 10px 12px; font-size: 0.95rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);">
       </div>
 
       <button type="submit" id="btn-submit-onboard" class="btn btn-primary" style="padding: 12px; font-weight: 800; font-size: 0.95rem; justify-content: center; margin-top: 6px;">

@@ -18,6 +18,12 @@
   --text-muted: #475569;
   --text-light: #64748b;
 
+  /* Aliases for view compatibility */
+  --text-color: var(--text-main);
+  --muted-text: var(--text-muted);
+  --bg-card: var(--card-bg);
+  --bg-hover: var(--card-hover-bg);
+
   --primary: #0d9488;
   /* Deep Royal Teal */
   --primary-hover: #0f766e;
@@ -61,6 +67,12 @@
   --text-main: #f0fdfa;
   --text-muted: #94a3b8;
   --text-light: #64748b;
+
+  /* Aliases for view compatibility */
+  --text-color: var(--text-main);
+  --muted-text: var(--text-muted);
+  --bg-card: var(--card-bg);
+  --bg-hover: var(--card-hover-bg);
 
   --primary: #2dd4bf;
   /* Glowing Cyan Teal */

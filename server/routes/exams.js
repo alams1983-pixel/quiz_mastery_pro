@@ -1712,7 +1712,9 @@ router.post('/attempts/:attemptId/submit', requireAuth, async (req, res) => {
 
     if (Array.isArray(responses)) {
       for (const item of responses) {
-        const correctIndex = answerKeyMap.get(item.question_id);
+        const questionId = item.question_id || item.id || 0;
+        const sectionId = item.section_id || 0;
+        const correctIndex = answerKeyMap.get(questionId);
         const state = parseInt(item.palette_state, 10) || 1;
         const selected = item.selected_option !== null && item.selected_option !== undefined ? parseInt(item.selected_option, 10) : null;
 
@@ -1737,15 +1739,22 @@ router.post('/attempts/:attemptId/submit', requireAuth, async (req, res) => {
           unattemptedCount++;
         }
 
-        await pool.query(`
-          INSERT INTO exam_item_logs (
-            attempt_id, exam_question_id, section_id, palette_state,
-            selected_option, is_correct, marks_awarded, time_spent_sec, language_used
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          attemptId, item.question_id, item.section_id, state,
-          selected, isCorrect, marksAwarded, parseInt(item.time_spent_sec, 10) || 0, item.language || 'en'
-        ]);
+        // Safely log item attempt (resilient to missing foreign key tables)
+        if (questionId && sectionId) {
+          try {
+            await pool.query(`
+              INSERT INTO exam_item_logs (
+                attempt_id, exam_question_id, section_id, palette_state,
+                selected_option, is_correct, marks_awarded, time_spent_sec, language_used
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+              attemptId, questionId, sectionId, state,
+              selected, isCorrect, marksAwarded, parseInt(item.time_spent_sec, 10) || 0, item.language || 'en'
+            ]);
+          } catch (logErr) {
+            console.warn(`[EXAM SUBMIT LOG WARNING] Skipped log for question #${questionId}:`, logErr.message);
+          }
+        }
       }
     }
 

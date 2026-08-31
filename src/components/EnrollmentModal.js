@@ -16,17 +16,17 @@ export function renderEnrollmentModal({ previousInstituteName, targetInstitute, 
         }
       </div>
 
-      <h2 style="margin-bottom: 0.5rem; color: var(--text-color, #1f2937); font-size: 1.5rem; font-weight: 700;">
+      <h2 style="margin-bottom: 0.5rem; color: var(--text-main); font-size: 1.5rem; font-weight: 700;">
         Enroll in ${targetInstitute.name}?
       </h2>
 
-      <p style="color: var(--muted-text, #6b7280); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.5;">
+      <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.5;">
         You are currently enrolled with <strong>${previousInstituteName}</strong>. 
         Would you like to enroll with <strong>${targetInstitute.name}</strong> as well?
       </p>
 
-      <div style="background: var(--bg-hover, #f3f4f6); padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--muted-text, #4b5563); text-align: left;">
-        <p style="margin: 0 0 0.5rem 0; font-weight: 600;">✨ What happens when you enroll?</p>
+      <div style="background: var(--bg-color); padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--text-main); text-align: left; border: 1px solid var(--border-color);">
+        <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: var(--primary);">✨ What happens when you enroll?</p>
         <ul style="margin: 0; padding-left: 1.2rem; line-height: 1.4;">
           <li>You will get access to quizzes and exams from <strong>${targetInstitute.name}</strong>.</li>
           <li>You can access tests and batches for <strong>${targetInstitute.name}</strong> on their coaching portal domain.</li>

@@ -6,7 +6,7 @@ import { setupPasswordToggles } from '../services/passwordToggle.js';
 export function renderStudentSettingsView(navigate) {
   const container = document.createElement('div');
   container.className = 'container page-view';
-  container.style.maxWidth = '1000px';
+  container.style.maxWidth = '1400px';
   container.style.padding = '2rem 1rem';
 
   const user = getUser();
@@ -276,7 +276,7 @@ async function loadInstituteBatches(container, user) {
           instId = data.enrollments[0].id;
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (!instId) {
