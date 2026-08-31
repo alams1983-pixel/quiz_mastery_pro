@@ -315,7 +315,7 @@ router.get('/:instId/batches-status', requireAuth, async (req, res) => {
     const instId = parseInt(req.params.instId, 10);
 
     const [batches] = await pool.query(`
-      SELECT b.id, b.name, b.code, b.description, b.created_at,
+      SELECT b.id, b.name, b.name as batch_name, b.code, b.code as batch_code, b.target_exam, b.description, b.created_at,
              sb.status as student_status
       FROM batches b
       LEFT JOIN student_batches sb ON sb.batch_id = b.id AND sb.user_id = ?

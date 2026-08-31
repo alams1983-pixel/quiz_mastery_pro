@@ -335,11 +335,14 @@ async function loadInstituteBatches(container, user) {
         actionBtn = `<button class="btn btn-primary btn-sm btn-request-join" data-id="${b.id}" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">Request to Join</button>`;
       }
 
+      const batchName = b.batch_name || b.name || 'Unnamed Batch';
+      const batchCode = b.batch_code || b.code || '';
+
       card.innerHTML = `
         <div>
-          <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">${b.batch_name}</div>
+          <div style="font-weight: 700; font-size: 0.92rem; color: var(--text-main);">${batchName}</div>
           <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.1rem;">
-            ${b.target_exam ? `Exam: ${b.target_exam}` : ''} ${b.batch_code ? `(Code: <code>${b.batch_code}</code>)` : ''}
+            ${b.target_exam ? `Exam: ${b.target_exam}` : ''} ${batchCode ? `(Code: <code>${batchCode}</code>)` : ''}
           </div>
         </div>
         <div>
