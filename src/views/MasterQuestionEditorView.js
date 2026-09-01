@@ -1,6 +1,7 @@
 import { apiRequest } from '../services/api.js';
 import { renderMath } from '../services/katexRenderer.js';
 import { normalizeImageUrl } from '../services/csvJsonParser.js';
+import { showLoadingOverlay, hideLoadingOverlay } from '../components/LoadingOverlayModal.js';
 
 export function renderMasterQuestionEditorView(navigate, params = {}) {
   const container = document.createElement('div');
@@ -21,7 +22,7 @@ export function renderMasterQuestionEditorView(navigate, params = {}) {
             ${questionId ? '✏️ Edit Master Question' : '➕ Create New Master Question'}
           </h1>
           <p style="font-size:0.85rem; color:var(--text-muted);">
-            Dedicated Master Question Workspace • Dynamic 2-6 Options • Line Breaks & Images
+            Dedicated Master Question Workspace • Dynamic 2-6 Options • Line Breaks & Deferred Image Upload
           </p>
         </div>
       </div>
@@ -99,13 +100,9 @@ export function renderMasterQuestionEditorView(navigate, params = {}) {
             <div id="section-passage-hi" class="lang-pane" style="display:none;">
               <textarea id="form-p-text-hi" class="form-control" rows="2" placeholder="गद्यांश पाठ (हिंदी)..."></textarea>
             </div>
-            <div style="margin-top:8px;">
-              <label class="form-label" style="font-size:0.8rem;">Passage Image</label>
-              <div style="display:flex; gap:8px; align-items:center;">
-                <input type="text" id="form-p-img-url" class="form-control" placeholder="Passage Image URL" style="font-size:0.85rem;" />
-                <input type="file" id="form-p-img-file" accept="image/*" style="display:none;" />
-                <button type="button" id="btn-upload-p-img" class="icon-action-btn" data-tooltip="Upload Passage Image" aria-label="Upload Passage Image"><i class="ri-image-add-line"></i></button>
-              </div>
+            <div style="margin-top:10px;">
+              <label class="form-label" style="font-size:0.8rem; font-weight:700;">Passage Image</label>
+              <div id="passage-img-picker-container"></div>
             </div>
           </div>
 
@@ -125,12 +122,8 @@ export function renderMasterQuestionEditorView(navigate, params = {}) {
           </div>
 
           <div class="form-group" style="margin-bottom:16px;">
-            <label class="form-label" style="font-size:0.82rem; font-weight:700;">Question Main Image</label>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <input type="text" id="form-q-img-url" class="form-control" placeholder="Question Image URL" style="font-size:0.85rem;" />
-              <input type="file" id="form-q-img-file" accept="image/*" style="display:none;" />
-              <button type="button" id="btn-upload-q-img" class="icon-action-btn" data-tooltip="Upload Question Image" aria-label="Upload Question Image"><i class="ri-image-add-line"></i></button>
-            </div>
+            <label class="form-label" style="font-size:0.82rem; font-weight:700;">Question Main Diagram / Image</label>
+            <div id="question-img-picker-container"></div>
           </div>
 
           <!-- Dynamic Options Section (2 to 6 Options) -->
@@ -166,12 +159,8 @@ export function renderMasterQuestionEditorView(navigate, params = {}) {
           </div>
 
           <div class="form-group" style="margin-bottom:16px;">
-            <label class="form-label" style="font-size:0.82rem; font-weight:700;">Explanation Diagram</label>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <input type="text" id="form-exp-img-url" class="form-control" placeholder="Explanation Image URL" style="font-size:0.85rem;" />
-              <input type="file" id="form-exp-img-file" accept="image/*" style="display:none;" />
-              <button type="button" id="btn-upload-exp-img" class="icon-action-btn" data-tooltip="Upload Explanation Image" aria-label="Upload Explanation Image"><i class="ri-image-add-line"></i></button>
-            </div>
+            <label class="form-label" style="font-size:0.82rem; font-weight:700;">Explanation Diagram / Image</label>
+            <div id="explanation-img-picker-container"></div>
           </div>
         </form>
       </div>
@@ -229,6 +218,10 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
   let optionsCount = 4; // Default 4 options (can range 2 to 6)
   let correctOptionIndex = 0;
 
+  // Local state for deferred file uploads & blob previews
+  const pendingImageFiles = new Map(); // fieldKey => File object
+  const activeBlobUrls = new Map();    // fieldKey => blobUrl string
+
   const btnBack = container.querySelector('#btn-editor-back');
   const btnSave = container.querySelector('#btn-save-question');
   const btnSaveNext = container.querySelector('#btn-save-next-question');
@@ -245,15 +238,12 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
 
   const pTextEn = container.querySelector('#form-p-text-en');
   const pTextHi = container.querySelector('#form-p-text-hi');
-  const pImgUrl = container.querySelector('#form-p-img-url');
 
   const qTextEn = container.querySelector('#form-q-text-en');
   const qTextHi = container.querySelector('#form-q-text-hi');
-  const qImgUrl = container.querySelector('#form-q-img-url');
 
   const qExpEn = container.querySelector('#form-q-exp-en');
   const qExpHi = container.querySelector('#form-q-exp-hi');
-  const expImgUrl = container.querySelector('#form-exp-img-url');
 
   const qDiff = container.querySelector('#form-q-diff');
   const qSec = container.querySelector('#form-q-section');
@@ -266,9 +256,170 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
   const btnAddOpt = container.querySelector('#btn-add-opt');
   const btnRemOpt = container.querySelector('#btn-rem-opt');
 
+  // Helper component to construct Thumbnail Image Picker Widgets
+  function createImagePickerWidget(fieldKey, labelText, initialUrl = '', onUpdateCallback) {
+    const widgetBox = document.createElement('div');
+    widgetBox.className = 'image-picker-widget-box';
+    widgetBox.dataset.field = fieldKey;
+
+    const normalizedInitUrl = normalizeImageUrl(initialUrl);
+
+    widgetBox.innerHTML = `
+      <div class="img-thumb-card" style="display:${normalizedInitUrl ? 'flex' : 'none'}; align-items:center; gap:12px; background:var(--bg-color); padding:8px 12px; border-radius:8px; border:1.5px solid var(--primary-border);">
+        <img class="img-thumb-preview" src="${normalizedInitUrl}" style="width:52px; height:52px; object-fit:contain; background:#ffffff; border-radius:6px; border:1px solid var(--border-color); flex-shrink:0;" onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2364748b%22 stroke-width=%222%22><rect width=%2218%22 height=%2218%22 x=%223%22 y=%223%22 rx=%222%22/><circle cx=%229%22 cy=%229%22 r=%222%22/><path d=%22m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21%22/></svg>';" />
+        <div style="flex:1; min-width:0;">
+          <div class="img-type-badge" style="font-size:0.78rem; font-weight:700; color:var(--primary);">
+            ${normalizedInitUrl.startsWith('blob:') ? '📁 Local File (Pending Upload)' : '🌐 Image URL Attached'}
+          </div>
+          <div class="img-path-txt" style="font-size:0.75rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            ${normalizedInitUrl.startsWith('blob:') ? 'Selected from local disk' : normalizedInitUrl}
+          </div>
+        </div>
+        <button type="button" class="btn-remove-picker-img icon-action-btn btn-danger" data-tooltip="Remove Image" aria-label="Remove Image" title="Remove Image">
+          <i class="ri-delete-bin-line"></i>
+        </button>
+      </div>
+
+      <div class="img-picker-controls" style="display:${normalizedInitUrl ? 'none' : 'flex'}; gap:8px; align-items:center;">
+        <input type="text" class="form-control picker-url-input" placeholder="${labelText || 'Image URL'}" value="${normalizedInitUrl.startsWith('blob:') ? '' : normalizedInitUrl}" style="font-size:0.85rem; flex:1;" />
+        <input type="file" class="picker-file-input" accept="image/*" style="display:none;" />
+        <button type="button" class="btn-browse-file icon-action-btn" data-tooltip="Upload Local Image" title="Upload Local Image">
+          <i class="ri-image-add-line"></i>
+        </button>
+      </div>
+    `;
+
+    const thumbCard = widgetBox.querySelector('.img-thumb-card');
+    const thumbPreview = widgetBox.querySelector('.img-thumb-preview');
+    const typeBadge = widgetBox.querySelector('.img-type-badge');
+    const pathTxt = widgetBox.querySelector('.img-path-txt');
+    const btnRemove = widgetBox.querySelector('.btn-remove-picker-img');
+
+    const controlsRow = widgetBox.querySelector('.img-picker-controls');
+    const urlInput = widgetBox.querySelector('.picker-url-input');
+    const fileInput = widgetBox.querySelector('.picker-file-input');
+    const btnBrowse = widgetBox.querySelector('.btn-browse-file');
+
+    btnBrowse.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) {
+        const file = fileInput.files[0];
+        if (activeBlobUrls.has(fieldKey)) {
+          URL.revokeObjectURL(activeBlobUrls.get(fieldKey));
+        }
+
+        const blobUrl = URL.createObjectURL(file);
+        activeBlobUrls.set(fieldKey, blobUrl);
+        pendingImageFiles.set(fieldKey, file);
+
+        thumbPreview.src = blobUrl;
+        typeBadge.textContent = '📁 Local File (Pending Upload)';
+        pathTxt.textContent = file.name + ` (${(file.size / 1024).toFixed(1)} KB)`;
+        thumbCard.style.display = 'flex';
+        controlsRow.style.display = 'none';
+
+        if (onUpdateCallback) onUpdateCallback(blobUrl);
+      }
+    });
+
+    urlInput.addEventListener('input', () => {
+      const val = urlInput.value.trim();
+      if (val) {
+        if (activeBlobUrls.has(fieldKey)) {
+          URL.revokeObjectURL(activeBlobUrls.get(fieldKey));
+          activeBlobUrls.delete(fieldKey);
+        }
+        pendingImageFiles.delete(fieldKey);
+
+        thumbPreview.src = val;
+        typeBadge.textContent = '🌐 Image URL Attached';
+        pathTxt.textContent = val;
+        thumbCard.style.display = 'flex';
+        controlsRow.style.display = 'none';
+      }
+      if (onUpdateCallback) onUpdateCallback(val);
+    });
+
+    btnRemove.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (activeBlobUrls.has(fieldKey)) {
+        URL.revokeObjectURL(activeBlobUrls.get(fieldKey));
+        activeBlobUrls.delete(fieldKey);
+      }
+      pendingImageFiles.delete(fieldKey);
+      fileInput.value = '';
+      urlInput.value = '';
+      thumbCard.style.display = 'none';
+      controlsRow.style.display = 'flex';
+
+      if (onUpdateCallback) onUpdateCallback('');
+    });
+
+    widgetBox.getValue = () => {
+      if (pendingImageFiles.has(fieldKey) && activeBlobUrls.has(fieldKey)) {
+        return activeBlobUrls.get(fieldKey);
+      }
+      return urlInput.value.trim();
+    };
+
+    widgetBox.setValue = (url) => {
+      const normalized = normalizeImageUrl(url);
+      if (!normalized) {
+        if (activeBlobUrls.has(fieldKey)) {
+          URL.revokeObjectURL(activeBlobUrls.get(fieldKey));
+          activeBlobUrls.delete(fieldKey);
+        }
+        pendingImageFiles.delete(fieldKey);
+        fileInput.value = '';
+        urlInput.value = '';
+        thumbCard.style.display = 'none';
+        controlsRow.style.display = 'flex';
+      } else if (normalized.startsWith('blob:')) {
+        thumbPreview.src = normalized;
+        typeBadge.textContent = '📁 Local File (Pending Upload)';
+        pathTxt.textContent = 'Selected from local disk';
+        thumbCard.style.display = 'flex';
+        controlsRow.style.display = 'none';
+      } else {
+        if (activeBlobUrls.has(fieldKey)) {
+          URL.revokeObjectURL(activeBlobUrls.get(fieldKey));
+          activeBlobUrls.delete(fieldKey);
+        }
+        pendingImageFiles.delete(fieldKey);
+        urlInput.value = normalized;
+        thumbPreview.src = normalized;
+        typeBadge.textContent = '🌐 Image URL Attached';
+        pathTxt.textContent = normalized;
+        thumbCard.style.display = 'flex';
+        controlsRow.style.display = 'none';
+      }
+    };
+
+    return widgetBox;
+  }
+
+  // Initialize passage, question, explanation image widgets
+  const passageImgContainer = container.querySelector('#passage-img-picker-container');
+  const passageImgWidget = createImagePickerWidget('passage', 'Passage Image URL (Optional)', '', () => updatePreview());
+  passageImgContainer.appendChild(passageImgWidget);
+
+  const questionImgContainer = container.querySelector('#question-img-picker-container');
+  const questionImgWidget = createImagePickerWidget('question', 'Question Image URL (Optional)', '', () => updatePreview());
+  questionImgContainer.appendChild(questionImgWidget);
+
+  const explanationImgContainer = container.querySelector('#explanation-img-picker-container');
+  const explanationImgWidget = createImagePickerWidget('explanation', 'Explanation Image URL (Optional)', '', () => updatePreview());
+  explanationImgContainer.appendChild(explanationImgWidget);
+
+  // Store option image widgets in array
+  let optionImgWidgets = [];
+
   // Render Dynamic Option Input Rows (2 to 6 Options)
   function renderOptionBuilderRows(enOpts = [], hiOpts = [], imgOpts = []) {
     optionsBuilder.innerHTML = '';
+    optionImgWidgets = [];
+
     for (let i = 0; i < optionsCount; i++) {
       const letter = String.fromCharCode(65 + i);
       const row = document.createElement('div');
@@ -281,33 +432,17 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
           <input type="text" class="form-control opt-en-input" data-idx="${i}" value="${enOpts[i] || ''}" placeholder="Option ${letter} text in English" style="padding:6px 10px; flex:1;" />
           <input type="text" class="form-control opt-hi-input" data-idx="${i}" value="${hiOpts[i] || ''}" placeholder="हिंदी विकल्प ${letter}" style="padding:6px 10px; flex:1;" />
         </div>
-        <div style="display:flex; gap:8px; align-items:center; margin-left:110px;">
-          <input type="text" class="form-control opt-img-input" data-idx="${i}" value="${imgOpts[i] || ''}" placeholder="Option ${letter} Image URL (Optional)" style="font-size:0.8rem; padding:4px 8px; flex:1;" />
-          <input type="file" class="opt-img-file" data-idx="${i}" accept="image/*" style="display:none;" />
-          <button type="button" class="icon-action-btn btn-upload-opt-img" data-idx="${i}" data-tooltip="Upload Option ${letter} Image" aria-label="Upload Option Image"><i class="ri-image-add-line"></i></button>
-        </div>
+        <div class="opt-img-picker-slot" style="margin-left:110px;"></div>
       `;
 
-      // Upload image handler per option
-      const fileInp = row.querySelector('.opt-img-file');
-      const urlInp = row.querySelector('.opt-img-input');
-      row.querySelector('.btn-upload-opt-img').addEventListener('click', () => fileInp.click());
-      fileInp.addEventListener('change', async () => {
-        if (fileInp.files[0]) {
-          try {
-            const formData = new FormData();
-            formData.append('image', fileInp.files[0]);
-            const res = await apiRequest('/images/upload', { method: 'POST', body: formData });
-            urlInp.value = normalizeImageUrl(res.imageUrl || res.fullUrl);
-            updatePreview();
-          } catch (err) { alert('Image upload failed: ' + err.message); }
-        }
-      });
+      const slot = row.querySelector('.opt-img-picker-slot');
+      const optWidget = createImagePickerWidget(`option_${i}`, `Option ${letter} Image URL (Optional)`, imgOpts[i] || '', () => updatePreview());
+      slot.appendChild(optWidget);
+      optionImgWidgets.push(optWidget);
 
       optionsBuilder.appendChild(row);
     }
 
-    // Attach listeners to new inputs
     optionsBuilder.querySelectorAll('input').forEach(inp => {
       inp.addEventListener('input', updatePreview);
       inp.addEventListener('change', updatePreview);
@@ -317,11 +452,10 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
   btnAddOpt.addEventListener('click', () => {
     if (optionsCount < 6) {
       optionsCount++;
-      renderOptionBuilderRows(
-        Array.from(container.querySelectorAll('.opt-en-input')).map(i => i.value),
-        Array.from(container.querySelectorAll('.opt-hi-input')).map(i => i.value),
-        Array.from(container.querySelectorAll('.opt-img-input')).map(i => i.value)
-      );
+      const currentEn = Array.from(container.querySelectorAll('.opt-en-input')).map(i => i.value);
+      const currentHi = Array.from(container.querySelectorAll('.opt-hi-input')).map(i => i.value);
+      const currentImg = optionImgWidgets.map(w => w.getValue());
+      renderOptionBuilderRows(currentEn, currentHi, currentImg);
       updatePreview();
     } else {
       alert('Maximum 6 options allowed per question.');
@@ -332,42 +466,15 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
     if (optionsCount > 2) {
       optionsCount--;
       if (correctOptionIndex >= optionsCount) correctOptionIndex = 0;
-      renderOptionBuilderRows(
-        Array.from(container.querySelectorAll('.opt-en-input')).map(i => i.value),
-        Array.from(container.querySelectorAll('.opt-hi-input')).map(i => i.value),
-        Array.from(container.querySelectorAll('.opt-img-input')).map(i => i.value)
-      );
+      const currentEn = Array.from(container.querySelectorAll('.opt-en-input')).map(i => i.value);
+      const currentHi = Array.from(container.querySelectorAll('.opt-hi-input')).map(i => i.value);
+      const currentImg = optionImgWidgets.map(w => w.getValue());
+      renderOptionBuilderRows(currentEn, currentHi, currentImg);
       updatePreview();
     } else {
       alert('Minimum 2 options required per question.');
     }
   });
-
-  // Manual File Upload Handlers for Passage, Question, Explanation Images
-  function setupImageUploader(btnId, fileInputId, urlInputId) {
-    const btn = container.querySelector(btnId);
-    const fileInp = container.querySelector(fileInputId);
-    const urlInp = container.querySelector(urlInputId);
-
-    if (btn && fileInp && urlInp) {
-      btn.addEventListener('click', () => fileInp.click());
-      fileInp.addEventListener('change', async () => {
-        if (fileInp.files[0]) {
-          try {
-            const formData = new FormData();
-            formData.append('image', fileInp.files[0]);
-            const res = await apiRequest('/images/upload', { method: 'POST', body: formData });
-            urlInp.value = normalizeImageUrl(res.imageUrl || res.fullUrl);
-            updatePreview();
-          } catch (err) { alert('Image upload failed: ' + err.message); }
-        }
-      });
-    }
-  }
-
-  setupImageUploader('#btn-upload-p-img', '#form-p-img-file', '#form-p-img-url');
-  setupImageUploader('#btn-upload-q-img', '#form-q-img-file', '#form-q-img-url');
-  setupImageUploader('#btn-upload-exp-img', '#form-exp-img-file', '#form-exp-img-url');
 
   // Tab Switching & Live Preview Language Switch
   tabEn.addEventListener('click', () => {
@@ -415,13 +522,13 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
     qSec.innerHTML = optsHtml;
   } catch (e) { console.warn('Could not load categories:', e); }
 
-  // Dynamic Live Preview Update (Responsive to Active Language, Line Breaks & Images)
+  // Dynamic Live Preview Update
   function updatePreview() {
     prevDiffBadge.textContent = qDiff.value || 'Medium';
 
     // 1. Passage
     const pTextVal = activeLang === 'hi' ? (pTextHi.value || pTextEn.value) : pTextEn.value;
-    const pImgVal = pImgUrl.value.trim();
+    const pImgVal = passageImgWidget.getValue();
     const prevPassageBox = container.querySelector('#prevPassageBox');
     const prevPassageText = container.querySelector('#prevPassageText');
     const prevPassageImg = container.querySelector('#prevPassageImg');
@@ -441,7 +548,7 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
     const prevQImg = container.querySelector('#prevQImg');
     prevQText.innerHTML = qTextVal || `Type a question statement in ${activeLang === 'hi' ? 'Hindi' : 'English'}...`;
 
-    const qImgVal = qImgUrl.value.trim();
+    const qImgVal = questionImgWidget.getValue();
     if (qImgVal) { prevQImg.src = qImgVal; prevQImg.style.display = 'block'; }
     else { prevQImg.style.display = 'none'; }
 
@@ -453,7 +560,7 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
 
     const enOpts = Array.from(container.querySelectorAll('.opt-en-input')).map(i => i.value);
     const hiOpts = Array.from(container.querySelectorAll('.opt-hi-input')).map(i => i.value);
-    const imgOpts = Array.from(container.querySelectorAll('.opt-img-input')).map(i => i.value);
+    const imgOpts = optionImgWidgets.map(w => w.getValue());
 
     for (let idx = 0; idx < optionsCount; idx++) {
       const isSelected = idx === correctOptionIndex;
@@ -477,7 +584,7 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
 
     // 4. Solution Explanation
     const expTextVal = activeLang === 'hi' ? (qExpHi.value || qExpEn.value) : qExpEn.value;
-    const expImgVal = expImgUrl.value.trim();
+    const expImgVal = explanationImgWidget.getValue();
     const prevExpBox = container.querySelector('#prevExplanationBox');
     const prevExpText = container.querySelector('#prevExplanationText');
     const prevExpImg = container.querySelector('#prevExpImg');
@@ -577,9 +684,9 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
 
         if (target.passage_text_en) pTextEn.value = target.passage_text_en;
         if (target.passage_text_hi) pTextHi.value = target.passage_text_hi;
-        if (target.passage_image_url) pImgUrl.value = normalizeImageUrl(target.passage_image_url);
-        if (target.image_url) qImgUrl.value = normalizeImageUrl(target.image_url);
-        if (target.explanation_image_url) expImgUrl.value = normalizeImageUrl(target.explanation_image_url);
+        if (target.passage_image_url) passageImgWidget.setValue(target.passage_image_url);
+        if (target.image_url) questionImgWidget.setValue(target.image_url);
+        if (target.explanation_image_url) explanationImgWidget.setValue(target.explanation_image_url);
 
         if (Array.isArray(target.tags) && target.tags.length > 0) {
           currentQuestionTags = [...target.tags];
@@ -612,27 +719,56 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
 
     const enOpts = Array.from(container.querySelectorAll('.opt-en-input')).map(i => i.value.trim());
     const hiOpts = Array.from(container.querySelectorAll('.opt-hi-input')).map(i => i.value.trim());
-    const imgOpts = Array.from(container.querySelectorAll('.opt-img-input')).map(i => i.value.trim());
+    const imgOpts = optionImgWidgets.map(w => w.getValue());
 
     const payload = {
       category_id: qSec.value ? parseInt(qSec.value, 10) : null,
       difficulty: qDiff.value,
       passage_text_en: pTextEn.value.trim(),
       passage_text_hi: pTextHi.value.trim(),
-      passage_image_url: pImgUrl.value.trim(),
+      passage_image_url: passageImgWidget.getValue(),
       question_text_en: enTextVal,
       question_text_hi: qTextHi.value.trim(),
-      image_url: qImgUrl.value.trim(),
+      image_url: questionImgWidget.getValue(),
       options_en: enOpts,
       options_hi: hiOpts,
       options_images: imgOpts,
       correct_option_index: correctOptionIndex,
       explanation_en: qExpEn.value.trim(),
       explanation_hi: qExpHi.value.trim(),
-      explanation_image_url: expImgUrl.value.trim(),
+      explanation_image_url: explanationImgWidget.getValue(),
       is_global: qGlobal ? qGlobal.checked : false,
       tags: currentQuestionTags
     };
+
+    // DEFERRED BATCH UPLOAD: Upload any pending local files before saving question record
+    if (pendingImageFiles.size > 0) {
+      showLoadingOverlay('Uploading Image Assets...', `Uploading ${pendingImageFiles.size} image asset(s) to server...`);
+      try {
+        for (const [fieldKey, file] of pendingImageFiles.entries()) {
+          const formData = new FormData();
+          formData.append('image', file);
+          const uploadRes = await apiRequest('/images/upload', { method: 'POST', body: formData });
+          const uploadedUrl = normalizeImageUrl(uploadRes.imageUrl || uploadRes.fullUrl);
+
+          if (fieldKey === 'passage') payload.passage_image_url = uploadedUrl;
+          else if (fieldKey === 'question') payload.image_url = uploadedUrl;
+          else if (fieldKey === 'explanation') payload.explanation_image_url = uploadedUrl;
+          else if (fieldKey.startsWith('option_')) {
+            const optIdx = parseInt(fieldKey.replace('option_', ''), 10);
+            if (!isNaN(optIdx) && optIdx < payload.options_images.length) {
+              payload.options_images[optIdx] = uploadedUrl;
+            }
+          }
+        }
+      } catch (uploadErr) {
+        hideLoadingOverlay();
+        alert('Failed to upload image assets: ' + uploadErr.message);
+        return;
+      } finally {
+        hideLoadingOverlay();
+      }
+    }
 
     try {
       if (questionId) {
@@ -647,12 +783,19 @@ async function setupMasterQuestionEditor(container, navigate, questionId, return
         });
       }
 
+      // Cleanup pending maps & blob URLs
+      activeBlobUrls.forEach(url => URL.revokeObjectURL(url));
+      activeBlobUrls.clear();
+      pendingImageFiles.clear();
+
       if (keepEditing) {
         alert('Master question saved successfully!');
         qTextEn.value = ''; qTextHi.value = '';
         qExpEn.value = ''; qExpHi.value = '';
         pTextEn.value = ''; pTextHi.value = '';
-        pImgUrl.value = ''; qImgUrl.value = ''; expImgUrl.value = '';
+        passageImgWidget.setValue('');
+        questionImgWidget.setValue('');
+        explanationImgWidget.setValue('');
         currentQuestionTags = [];
         renderTagChips();
         optionsCount = 4; correctOptionIndex = 0;

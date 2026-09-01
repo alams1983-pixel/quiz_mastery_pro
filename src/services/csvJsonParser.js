@@ -35,12 +35,14 @@ export function normalizeImageUrl(url) {
   if (!url || typeof url !== 'string') return '';
   const trimmed = url.trim();
   if (!trimmed) return '';
+  if (trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return trimmed;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   if (trimmed.startsWith('/uploads/')) return trimmed;
   if (trimmed.startsWith('uploads/')) return '/' + trimmed;
   if (trimmed.startsWith('/api/images/')) return trimmed.replace('/api/images/', '/uploads/');
   if (trimmed.startsWith('api/images/')) return '/' + trimmed.replace('api/images/', 'uploads/');
   if (/^img_\d+_\d+\.(jpg|jpeg|png|webp|gif)$/i.test(trimmed)) return `/uploads/${trimmed}`;
+  if (/^u\d+_i\d+_\d+_\d+\.(jpg|jpeg|png|webp|gif)$/i.test(trimmed)) return `/uploads/${trimmed}`;
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
