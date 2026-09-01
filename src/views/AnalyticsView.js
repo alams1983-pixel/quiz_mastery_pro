@@ -1,4 +1,5 @@
 import { apiRequest, getUser } from '../services/api.js';
+import { showLoadingOverlay, hideLoadingOverlay } from '../components/LoadingOverlayModal.js';
 
 export function renderAnalyticsView(navigate) {
   const container = document.createElement('div');

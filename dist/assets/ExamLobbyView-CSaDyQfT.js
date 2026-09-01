@@ -1,4 +1,4 @@
-import{r as a}from"./index-BHxKXAPC.js";function u(e,r){const i=document.createElement("div");return i.className="view-container fade-in",i.style.maxWidth="900px",i.style.margin="20px auto",i.innerHTML=`
+import{r as a}from"./index-gnH7Bmmh.js";function u(e,r){const i=document.createElement("div");return i.className="view-container fade-in",i.style.maxWidth="900px",i.style.margin="20px auto",i.innerHTML=`
     <div class="card" style="padding: 28px; background: var(--card-bg);">
       <div style="border-bottom: 2px solid var(--border-color); padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
         <div>

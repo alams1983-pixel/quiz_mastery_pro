@@ -1,4 +1,4 @@
-import{g as f,r as l}from"./index-BHxKXAPC.js";function S(t){const e=document.createElement("div");e.className="view-container fade-in";const a=f()||{role:"user"};return a.role==="super_admin"?b(e):a.role==="institute_admin"||a.role==="admin"?h(e):x(e,t),e}async function x(t,e){t.innerHTML=`
+import{g as f,r as l,e as x,h}from"./index-gnH7Bmmh.js";function T(t){const e=document.createElement("div");e.className="view-container fade-in";const a=f()||{role:"user"};return a.role==="super_admin"?S(e):a.role==="institute_admin"||a.role==="admin"?w(e):b(e,t),e}async function b(t,e){t.innerHTML=`
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">📊 My CBT Exam Analytics & Performance</h1>
       <p style="color: var(--text-muted); font-size: 0.95rem;">
@@ -67,7 +67,7 @@ import{g as f,r as l}from"./index-BHxKXAPC.js";function S(t){const e=document.cr
           </button>
         </td>
       </tr>
-    `).join(""),n.querySelectorAll(".btn-view-scorecard").forEach(r=>{r.addEventListener("click",()=>{const o=r.dataset.attemptid;e("exam-analysis",{attemptId:o})})})}catch(a){console.error("Student Exam Analytics Error:",a)}}async function h(t,e){t.innerHTML=`
+    `).join(""),n.querySelectorAll(".btn-view-scorecard").forEach(r=>{r.addEventListener("click",()=>{const o=r.dataset.attemptid;e("exam-analysis",{attemptId:o})})})}catch(a){console.error("Student Exam Analytics Error:",a)}}async function w(t,e){t.innerHTML=`
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">🏫 Institute Student Performance Analytics</h1>
       <p style="color: var(--text-muted); font-size: 0.95rem;">
@@ -120,7 +120,7 @@ import{g as f,r as l}from"./index-BHxKXAPC.js";function S(t){const e=document.cr
       <!-- Roster Pagination Container -->
       <div id="rosterPaginationContainer" style="margin-top: 20px;"></div>
     </div>
-  `,i(t)}async function i(t){showLoadingOverlay("Loading Student Roster Analytics...","Fetching performance stats...");try{const e=await l(`/analytics/institute-student-analytics?page=${instRosterPage}&limit=${instRosterLimit}`);t.querySelector("#instTotalStudents").textContent=(e.totalStudents||0).toLocaleString(),t.querySelector("#instTotalExamAttempts").textContent=(e.totalExamAttempts||0).toLocaleString(),t.querySelector("#instClassAvgAcc").textContent=(e.classAvgAccuracy||0)+"%",t.querySelector("#instClassAvgScore").textContent=e.classAvgScore||"0.00",instRosterMeta=e.pagination||{total:(e.students||[]).length,page:instRosterPage,limit:instRosterLimit,totalPages:1};const a=t.querySelector("#instRosterTbody"),n=e.students||[];if(n.length===0){a.innerHTML='<tr><td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">No student attempt records found in your institute yet.</td></tr>',u(t);return}a.innerHTML=n.map(s=>`
+  `,i(t)}async function i(t){x("Loading Student Roster Analytics...","Fetching performance stats...");try{const e=await l(`/analytics/institute-student-analytics?page=${instRosterPage}&limit=${instRosterLimit}`);t.querySelector("#instTotalStudents").textContent=(e.totalStudents||0).toLocaleString(),t.querySelector("#instTotalExamAttempts").textContent=(e.totalExamAttempts||0).toLocaleString(),t.querySelector("#instClassAvgAcc").textContent=(e.classAvgAccuracy||0)+"%",t.querySelector("#instClassAvgScore").textContent=e.classAvgScore||"0.00",instRosterMeta=e.pagination||{total:(e.students||[]).length,page:instRosterPage,limit:instRosterLimit,totalPages:1};const a=t.querySelector("#instRosterTbody"),n=e.students||[];if(n.length===0){a.innerHTML='<tr><td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">No student attempt records found in your institute yet.</td></tr>',u(t);return}a.innerHTML=n.map(s=>`
       <tr>
         <td style="font-weight: 700; color: var(--text-main);">${s.full_name}</td>
         <td>${s.email}</td>
@@ -134,7 +134,7 @@ import{g as f,r as l}from"./index-BHxKXAPC.js";function S(t){const e=document.cr
         <td><span style="font-weight: 700; color: #f59e0b;">${s.max_percentile?Math.round(s.max_percentile)+"%":"-"}</span></td>
         <td style="font-size: 0.82rem; color: var(--text-muted);">${s.last_active?new Date(s.last_active).toLocaleString():"Never"}</td>
       </tr>
-    `).join(""),u(t)}catch(e){console.error("Institute Analytics Error:",e)}finally{hideLoadingOverlay()}}function u(t){var d,c,p,m,g;const e=t.querySelector("#rosterPaginationContainer");if(!e)return;const{total:a,page:n,limit:s,totalPages:r}=instRosterMeta,o=a===0?0:(n-1)*s+1,y=Math.min(a,n*s);e.innerHTML=`
+    `).join(""),u(t)}catch(e){console.error("Institute Analytics Error:",e)}finally{h()}}function u(t){var d,c,p,m,g;const e=t.querySelector("#rosterPaginationContainer");if(!e)return;const{total:a,page:n,limit:s,totalPages:r}=instRosterMeta,o=a===0?0:(n-1)*s+1,y=Math.min(a,n*s);e.innerHTML=`
     <div class="pagination-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 18px; background:var(--card-bg); border-radius:var(--radius-md); border:1px solid var(--border-color);">
       <div style="font-size:0.88rem; color:var(--text-muted); font-weight:600;">
         Showing <strong style="color:var(--text-main);">${o}–${y}</strong> of <strong style="color:var(--primary);">${a.toLocaleString()}</strong> roster students
@@ -165,7 +165,7 @@ import{g as f,r as l}from"./index-BHxKXAPC.js";function S(t){const e=document.cr
         </select>
       </div>
     </div>
-  `,(d=e.querySelector(".btn-page-first"))==null||d.addEventListener("click",()=>{instRosterPage>1&&(instRosterPage=1,i(t))}),(c=e.querySelector(".btn-page-prev"))==null||c.addEventListener("click",()=>{instRosterPage>1&&(instRosterPage--,i(t))}),(p=e.querySelector(".btn-page-next"))==null||p.addEventListener("click",()=>{instRosterPage<r&&(instRosterPage++,i(t))}),(m=e.querySelector(".btn-page-last"))==null||m.addEventListener("click",()=>{instRosterPage<r&&(instRosterPage=r,i(t))}),(g=e.querySelector(".select-page-limit"))==null||g.addEventListener("change",v=>{instRosterLimit=parseInt(v.target.value,10)||20,instRosterPage=1,i(t)})}async function b(t,e){t.innerHTML=`
+  `,(d=e.querySelector(".btn-page-first"))==null||d.addEventListener("click",()=>{instRosterPage>1&&(instRosterPage=1,i(t))}),(c=e.querySelector(".btn-page-prev"))==null||c.addEventListener("click",()=>{instRosterPage>1&&(instRosterPage--,i(t))}),(p=e.querySelector(".btn-page-next"))==null||p.addEventListener("click",()=>{instRosterPage<r&&(instRosterPage++,i(t))}),(m=e.querySelector(".btn-page-last"))==null||m.addEventListener("click",()=>{instRosterPage<r&&(instRosterPage=r,i(t))}),(g=e.querySelector(".select-page-limit"))==null||g.addEventListener("change",v=>{instRosterLimit=parseInt(v.target.value,10)||20,instRosterPage=1,i(t)})}async function S(t,e){t.innerHTML=`
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 6px;">👑 Platform-Wide Super Admin Analytics</h1>
       <p style="color: var(--text-muted); font-size: 0.95rem;">
@@ -233,4 +233,4 @@ import{g as f,r as l}from"./index-BHxKXAPC.js";function S(t){const e=document.cr
           </span>
         </td>
       </tr>
-    `).join("")}catch(a){console.error("Platform Analytics Error:",a)}}export{S as renderAnalyticsView};
+    `).join("")}catch(a){console.error("Platform Analytics Error:",a)}}export{T as renderAnalyticsView};

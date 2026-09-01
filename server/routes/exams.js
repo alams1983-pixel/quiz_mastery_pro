@@ -1825,15 +1825,28 @@ router.get('/attempts/:attemptId/analysis', requireAuth, async (req, res) => {
     // Section-wise Breakdown
     const [sections] = await pool.query('SELECT * FROM exam_sections WHERE exam_id = ? ORDER BY section_order ASC', [examId]);
     const [itemLogs] = await pool.query(`
-      SELECT eil.*, eq.question_text_en, eq.question_text_hi, eq.options_en_json, eq.options_hi_json,
-             eq.correct_option_index, eq.explanation_en, eq.explanation_hi, eq.image_url,
-             p.passage_text_en, p.passage_text_hi, es.section_name
+      SELECT eil.*, 
+             COALESCE(qb.question_text_en, eq.question_text_en) as question_text_en,
+             COALESCE(qb.question_text_hi, eq.question_text_hi) as question_text_hi,
+             COALESCE(qb.options_en_json, eq.options_en_json) as options_en_json,
+             COALESCE(qb.options_hi_json, eq.options_hi_json) as options_hi_json,
+             COALESCE(qb.options_images_json, eq.options_images_json) as options_images_json,
+             COALESCE(qb.correct_option_index, eq.correct_option_index) as correct_option_index,
+             COALESCE(qb.explanation_en, eq.explanation_en) as explanation_en,
+             COALESCE(qb.explanation_hi, eq.explanation_hi) as explanation_hi,
+             COALESCE(qb.image_url, eq.image_url) as image_url,
+             COALESCE(p1.passage_text_en, p2.passage_text_en) as passage_text_en,
+             COALESCE(p1.passage_text_hi, p2.passage_text_hi) as passage_text_hi,
+             COALESCE(p1.passage_image_url, p2.passage_image_url) as passage_image_url,
+             es.section_name
       FROM exam_item_logs eil
-      JOIN exam_questions eq ON eil.exam_question_id = eq.id
+      LEFT JOIN question_bank qb ON eil.exam_question_id = qb.id
+      LEFT JOIN exam_questions eq ON eil.exam_question_id = eq.id
       JOIN exam_sections es ON eil.section_id = es.id
-      LEFT JOIN passages p ON eq.passage_id = p.id
+      LEFT JOIN passages p1 ON qb.passage_id = p1.id
+      LEFT JOIN passages p2 ON eq.passage_id = p2.id
       WHERE eil.attempt_id = ?
-      ORDER BY es.section_order ASC, eq.question_order ASC
+      ORDER BY es.section_order ASC, eil.id ASC
     `, [attemptId]);
 
     // Compute Item-Level Aggregates across ALL candidates for this exam
