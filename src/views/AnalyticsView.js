@@ -124,6 +124,10 @@ async function renderStudentExamAnalytics(container, navigate) {
 // =========================================================================
 // 2. COACHING INSTITUTE STUDENT ANALYTICS VIEW (FOR TEACHER / COACHING ADMIN)
 // =========================================================================
+let instRosterPage = 1;
+let instRosterLimit = 20;
+let instRosterMeta = null;
+
 async function renderInstituteStudentAnalytics(container, navigate) {
   container.innerHTML = `
     <div style="margin-bottom: 24px;">
