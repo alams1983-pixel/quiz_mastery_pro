@@ -38,13 +38,13 @@ function navigate(view, params = {}, options = {}) {
   const user = getUser();
 
   // Auth Guard
-  if (!user && (view === 'analytics' || view === 'admin' || view === 'super-admin' || view === 'user-management' || view === 'institute-admin' || view === 'exam-questions' || view === 'question-editor' || view === 'taxonomy' || view === 'ssc-exam' || view === 'exam-analysis' || view === 'student-settings' || view === 'coaching-branding')) {
+  if (!user && (view === 'analytics' || view === 'admin' || view === 'super-admin' || view === 'user-management' || view === 'institute-admin' || view === 'institute-batches' || view === 'institute-students' || view === 'exam-questions' || view === 'question-editor' || view === 'taxonomy' || view === 'ssc-exam' || view === 'exam-analysis' || view === 'student-settings' || view === 'coaching-branding')) {
     alert('Please sign in or register to access this area.');
     currentView = 'login';
   } else if ((view === 'super-admin' || view === 'user-management') && user && user.role !== 'super_admin') {
     alert('Access denied. Super Admin privileges required.');
     currentView = 'dashboard';
-  } else if ((view === 'institute-admin' || view === 'exam-questions' || view === 'question-editor' || view === 'taxonomy' || view === 'coaching-branding') && user && user.role !== 'institute_admin' && user.role !== 'super_admin' && user.role !== 'admin') {
+  } else if ((view === 'institute-admin' || view === 'institute-batches' || view === 'institute-students' || view === 'exam-questions' || view === 'question-editor' || view === 'taxonomy' || view === 'coaching-branding') && user && user.role !== 'institute_admin' && user.role !== 'super_admin' && user.role !== 'admin') {
     alert('Access denied. Coaching Institute Admin privileges required.');
     currentView = 'dashboard';
   } else {
@@ -137,19 +137,30 @@ async function render() {
 
   // SSC Exam Candidate View runs in FULL VIEWPORT mode without standard app shell
   if (currentView === 'ssc-exam') {
-    const { renderSSCExamDashboardView } = await import('./views/SSCExamDashboardView.js');
-    const sscView = renderSSCExamDashboardView(currentExtraParams.attemptId, navigate, currentExtraParams);
-    app.appendChild(sscView);
+    const React = (await import('react')).default;
+    const { createRoot } = await import('react-dom/client');
+    const { SSCExamDashboardView } = await import('./views/SSCExamDashboardView.jsx');
+    
+    const sscWrapper = document.createElement('div');
+    const root = createRoot(sscWrapper);
+    root.render(React.createElement(SSCExamDashboardView, { attemptId: currentExtraParams.attemptId, navigate, extraParams: currentExtraParams }));
+    app.appendChild(sscWrapper);
     return;
   }
 
   // Unauthenticated visitors or explicit Login View: render standalone full-screen login page without sidebar shell
   if (!user || currentView === 'login') {
-    const loginView = renderLoginView(navigate);
-    loginView.style.minHeight = '100vh';
-    loginView.style.width = '100vw';
-    loginView.style.background = 'var(--bg-color, #f8fafc)';
-    app.appendChild(loginView);
+    const React = (await import('react')).default;
+    const { createRoot } = await import('react-dom/client');
+    const { LoginView } = await import('./views/LoginView.jsx');
+    
+    const viewWrapper = document.createElement('div');
+    viewWrapper.style.minHeight = '100vh';
+    viewWrapper.style.width = '100vw';
+    viewWrapper.style.background = 'var(--bg-color, #f8fafc)';
+    const root = createRoot(viewWrapper);
+    root.render(React.createElement(LoginView, { navigate }));
+    app.appendChild(viewWrapper);
     return;
   }
 
@@ -163,31 +174,74 @@ async function render() {
   let viewElement;
 
   switch (currentView) {
-    case 'login':
-      viewElement = renderLoginView(navigate);
+    case 'login': {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { LoginView } = await import('./views/LoginView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(LoginView, { navigate }));
       break;
-    case 'dashboard':
-      viewElement = renderUserDashboard(navigate, startQuizSession);
+    }
+    case 'dashboard': {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { UserDashboard } = await import('./views/UserDashboard.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(UserDashboard, { navigate, startQuizSession }));
       break;
-    case 'student-exams':
-      viewElement = renderStudentExamsView(navigate);
+    }
+    case 'student-exams': {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { StudentExamsView } = await import('./views/StudentExamsView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(StudentExamsView, { navigate }));
       break;
-    case 'student-quizzes':
-      viewElement = renderStudentQuizzesView(navigate, startQuizSession);
+    }
+    case 'student-quizzes': {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { StudentQuizzesView } = await import('./views/StudentQuizzesView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(StudentQuizzesView, { navigate, startQuizSession }));
       break;
+    }
     case 'student-settings': {
-      const { renderStudentSettingsView } = await import('./views/StudentSettingsView.js');
-      viewElement = renderStudentSettingsView(navigate);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { StudentSettingsView } = await import('./views/StudentSettingsView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(StudentSettingsView, { navigate }));
       break;
     }
     case 'coaching-branding': {
-      const { renderCoachingBrandingView } = await import('./views/CoachingBrandingView.js');
-      viewElement = renderCoachingBrandingView(navigate);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { CoachingBrandingView } = await import('./views/CoachingBrandingView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(CoachingBrandingView, { navigate }));
       break;
     }
     case 'taxonomy': {
-      const { renderTaxonomyView } = await import('./views/TaxonomyView.js');
-      viewElement = renderTaxonomyView(navigate);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { TaxonomyView } = await import('./views/TaxonomyView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(TaxonomyView, { navigate }));
       break;
     }
     case 'quiz': {
@@ -196,8 +250,13 @@ async function render() {
       break;
     }
     case 'analytics': {
-      const { renderAnalyticsView } = await import('./views/AnalyticsView.js');
-      viewElement = renderAnalyticsView(navigate);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { AnalyticsView } = await import('./views/AnalyticsView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(AnalyticsView, { navigate }));
       break;
     }
     case 'admin': {
@@ -206,18 +265,38 @@ async function render() {
       break;
     }
     case 'user-management': {
-      const { renderUserManagementView } = await import('./views/UserManagementView.js');
-      viewElement = renderUserManagementView(navigate);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { UserManagementView } = await import('./views/UserManagementView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(UserManagementView, { navigate }));
       break;
     }
     case 'super-admin': {
-      const { renderSuperAdminView } = await import('./views/SuperAdminView.js');
-      viewElement = renderSuperAdminView(navigate);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { SuperAdminView } = await import('./views/SuperAdminView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(SuperAdminView, { navigate }));
       break;
     }
     case 'institute-admin': {
       const { renderInstituteAdminView } = await import('./views/InstituteAdminView.js');
-      viewElement = renderInstituteAdminView(navigate);
+      viewElement = renderInstituteAdminView(navigate, 'exams');
+      break;
+    }
+    case 'institute-batches': {
+      const { renderInstituteAdminView } = await import('./views/InstituteAdminView.js');
+      viewElement = renderInstituteAdminView(navigate, 'batches');
+      break;
+    }
+    case 'institute-students': {
+      const { renderInstituteAdminView } = await import('./views/InstituteAdminView.js');
+      viewElement = renderInstituteAdminView(navigate, 'students');
       break;
     }
     case 'exam-questions': {
@@ -231,17 +310,35 @@ async function render() {
       break;
     }
     case 'exam-lobby': {
-      const { renderExamLobbyView } = await import('./views/ExamLobbyView.js');
-      viewElement = renderExamLobbyView(currentExtraParams.examId, navigate);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { ExamLobbyView } = await import('./views/ExamLobbyView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(ExamLobbyView, { examId: currentExtraParams.examId, navigate }));
       break;
     }
     case 'exam-analysis': {
-      const { renderExamAnalysisView } = await import('./views/ExamAnalysisView.js');
-      viewElement = renderExamAnalysisView(currentExtraParams.attemptId, navigate);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { ExamAnalysisView } = await import('./views/ExamAnalysisView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(ExamAnalysisView, { attemptId: currentExtraParams.attemptId, navigate }));
       break;
     }
-    default:
-      viewElement = renderUserDashboard(navigate, startQuizSession);
+    default: {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { UserDashboard } = await import('./views/UserDashboard.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(UserDashboard, { navigate, startQuizSession }));
+      break;
+    }
   }
 
   if (mainContent && viewElement) {

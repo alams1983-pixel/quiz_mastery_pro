@@ -103,19 +103,62 @@ router.post('/register', async (req, res) => {
 // 2. User Login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password, institute_slug, institute_code } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
+    const { email, password, firebaseIdToken, institute_slug, institute_code } = req.body;
+
+    let user = null;
+    let isAuthenticated = false;
+
+    // 1. Authenticate via Firebase ID Token if provided (Firebase Email / Social Auth)
+    if (firebaseIdToken) {
+      try {
+        const decoded = await verifyFirebaseIdToken(firebaseIdToken);
+        const tokenEmail = decoded.email || email;
+        if (tokenEmail) {
+          const [users] = await pool.query(
+            'SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+            [tokenEmail.trim()]
+          );
+          if (users.length > 0) {
+            user = users[0];
+            isAuthenticated = true;
+          }
+        }
+      } catch (fbErr) {
+        console.warn('[AUTH] Firebase ID Token verification warning during login:', fbErr.message);
+      }
     }
 
-    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (users.length === 0) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+    // 2. Fallback to direct Email + Password comparison if not authenticated via Firebase Token
+    if (!isAuthenticated) {
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+      }
+
+      const cleanEmail = email.trim();
+      const [users] = await pool.query(
+        'SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+        [cleanEmail]
+      );
+      if (users.length === 0) {
+        console.warn(`[AUTH LOGIN FAILED] No account found for email: "${cleanEmail}"`);
+        return res.status(401).json({ error: 'Invalid email or password.' });
+      }
+
+      user = users[0];
+
+      if (user.password_hash && typeof user.password_hash === 'string') {
+        const match = await bcrypt.compare(password, user.password_hash);
+        if (match) {
+          isAuthenticated = true;
+        } else {
+          console.warn(`[AUTH LOGIN FAILED] Password mismatch for User ID ${user.id} (${user.email}).`);
+        }
+      } else {
+        console.warn(`[AUTH LOGIN FAILED] User ID ${user.id} (${user.email}) has no password hash set.`);
+      }
     }
 
-    const user = users[0];
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) {
+    if (!isAuthenticated || !user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 

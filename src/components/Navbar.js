@@ -84,10 +84,21 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
         ${user && (user.role === 'institute_admin' || user.role === 'admin' || user.role === 'super_admin') ? `
           <div class="nav-section-label" style="margin-top: 18px;">TEACHER & COACHING</div>
 
-          <button class="sidebar-nav-item ${currentView === 'institute-admin' ? 'active' : ''}" id="sideInstituteAdmin">
-            <i class="ri-building-4-line nav-icon"></i>
-            <span class="nav-label">Exam Setup</span>
-            <span class="nav-badge orange">Portal</span>
+          <button class="sidebar-nav-item ${currentView === 'institute-batches' ? 'active' : ''}" id="sideInstituteBatches">
+            <i class="ri-team-line nav-icon"></i>
+            <span class="nav-label">Batches & Classes</span>
+            <span class="nav-badge blue">Batches</span>
+          </button>
+
+          <button class="sidebar-nav-item ${currentView === 'institute-students' ? 'active' : ''}" id="sideInstituteStudents">
+            <i class="ri-user-search-line nav-icon"></i>
+            <span class="nav-label">Student Roster</span>
+          </button>
+
+          <button class="sidebar-nav-item ${currentView === 'institute-admin' || currentView === 'institute-exams' ? 'active' : ''}" id="sideInstituteAdmin">
+            <i class="ri-computer-line nav-icon"></i>
+            <span class="nav-label">CBT Exam Setup</span>
+            <span class="nav-badge orange">Exams</span>
           </button>
 
           <button class="sidebar-nav-item ${currentView === 'exam-questions' || currentView === 'question-editor' ? 'active' : ''}" id="sideExamQuestions">
@@ -245,6 +256,12 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
 
   const sideInst = shell.querySelector('#sideInstituteAdmin');
   if (sideInst) sideInst.addEventListener('click', () => navTo('institute-admin'));
+
+  const sideBatches = shell.querySelector('#sideInstituteBatches');
+  if (sideBatches) sideBatches.addEventListener('click', () => navTo('institute-batches'));
+
+  const sideStudents = shell.querySelector('#sideInstituteStudents');
+  if (sideStudents) sideStudents.addEventListener('click', () => navTo('institute-students'));
 
   const sideExamQ = shell.querySelector('#sideExamQuestions');
   if (sideExamQ) sideExamQ.addEventListener('click', () => navTo('exam-questions'));

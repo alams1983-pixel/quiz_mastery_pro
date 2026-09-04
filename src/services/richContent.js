@@ -70,8 +70,13 @@ export function renderRichContent(rawText) {
     }
   });
 
-  // 3. Convert line breaks to <br/>
-  text = text.replace(/\r?\n/g, '<br/>');
+  // 3. Convert line breaks outside HTML/SVG tags to <br/>
+  text = text.split(/(<[^>]+>)/g).map(part => {
+    if (part.startsWith('<') && part.endsWith('>')) {
+      return part; // Preserve HTML/SVG tags and path attributes intact
+    }
+    return part.replace(/\r?\n/g, '<br/>');
+  }).join('');
 
   return text;
 }

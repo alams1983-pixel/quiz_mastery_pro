@@ -139,10 +139,10 @@ router.get('/batches/pending-requests', requireInstituteAdmin, async (req, res) 
   }
 });
 
-// 0c. Approve or Reject Student Batch Join Request
+// 0c. Approve, Reject, or Revoke Student Batch Access
 router.post('/batches/approve-request', requireInstituteAdmin, async (req, res) => {
   try {
-    const { user_id, batch_id, action } = req.body; // action: 'approve' or 'reject'
+    const { user_id, batch_id, action } = req.body; // action: 'approve', 'reject', or 'revoke'
     if (!user_id || !batch_id || !action) {
       return res.status(400).json({ error: 'user_id, batch_id, and action are required.' });
     }
@@ -162,10 +162,42 @@ router.post('/batches/approve-request', requireInstituteAdmin, async (req, res) 
       WHERE user_id = ? AND batch_id = ?
     `, [newStatus, user_id, batch_id]);
 
-    res.json({ message: `Student batch request ${newStatus} successfully.`, status: newStatus });
+    res.json({ message: `Student batch membership ${action === 'revoke' ? 'revoked' : newStatus} successfully.`, status: newStatus });
   } catch (err) {
-    console.error('Approve Batch Request Error:', err);
+    console.error('Approve/Revoke Batch Request Error:', err);
     res.status(500).json({ error: 'Error updating batch request.' });
+  }
+});
+
+// 0d. Get Enrolled/Associated Students for a Specific Batch (Institute Admin or Super Admin)
+router.get('/batches/:batchId/enrolled-students', requireInstituteAdmin, async (req, res) => {
+  try {
+    const batchId = parseInt(req.params.batchId, 10);
+    if (!batchId) return res.status(400).json({ error: 'Valid Batch ID is required.' });
+
+    const [batches] = await pool.query('SELECT institute_id, name FROM batches WHERE id = ?', [batchId]);
+    if (batches.length === 0) return res.status(404).json({ error: 'Batch not found.' });
+
+    const instId = req.user.role === 'super_admin' ? (req.query.institute_id || req.user.institute_id) : req.user.institute_id;
+    if (req.user.role !== 'super_admin' && batches[0].institute_id !== instId) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
+    const [students] = await pool.query(`
+      SELECT sb.user_id, sb.batch_id, sb.status, sb.created_at as enrolled_at,
+             u.full_name as student_name, u.email as student_email, u.phone_number,
+             b.name as batch_name, b.code as batch_code
+      FROM student_batches sb
+      JOIN users u ON sb.user_id = u.id
+      JOIN batches b ON sb.batch_id = b.id
+      WHERE sb.batch_id = ?
+      ORDER BY FIELD(sb.status, 'approved', 'pending', 'rejected'), sb.created_at DESC
+    `, [batchId]);
+
+    res.json({ batchName: batches[0].name, students });
+  } catch (err) {
+    console.error('Fetch Batch Enrolled Students Error:', err);
+    res.status(500).json({ error: 'Error fetching batch enrolled students.' });
   }
 });
 

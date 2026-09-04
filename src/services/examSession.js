@@ -9,10 +9,16 @@ export const PALETTE_STATES = {
 };
 
 export class ExamSessionManager {
-  constructor(attempt, exam, sections) {
-    this.attempt = attempt;
-    this.exam = exam;
-    this.sections = sections; // Array of sections, each containing questions array
+  constructor(attemptOrData, exam, sections) {
+    if (attemptOrData && (attemptOrData.exam || attemptOrData.attempt)) {
+      this.attempt = attemptOrData.attempt || attemptOrData;
+      this.exam = attemptOrData.exam || {};
+      this.sections = attemptOrData.sections || [];
+    } else {
+      this.attempt = attemptOrData || {};
+      this.exam = exam || {};
+      this.sections = sections || [];
+    }
 
     this.activeSectionIndex = 0;
     this.activeQuestionIndex = 0;
@@ -22,7 +28,8 @@ export class ExamSessionManager {
     this.stateMap = new Map();
     this.startTime = Date.now();
     this.questionStartTime = Date.now();
-    this.remainingSeconds = (exam.total_duration_mins || 60) * 60;
+    this.remainingSeconds = ((this.exam && this.exam.total_duration_mins) || 60) * 60;
+    this.autoSaveInterval = null;
     this.autoSaveInterval = null;
 
     this.initStates();
@@ -81,6 +88,59 @@ export class ExamSessionManager {
 
   getCurrentSection() {
     return this.sections[this.activeSectionIndex] || null;
+  }
+
+  getCurrentSectionQuestions() {
+    const sec = this.getCurrentSection();
+    return sec && sec.questions ? sec.questions : [];
+  }
+
+  getCurrentQuestionIndex() {
+    return this.activeQuestionIndex;
+  }
+
+  getRemainingTimeSec() {
+    return this.remainingSeconds;
+  }
+
+  tickTimer() {
+    if (this.remainingSeconds > 0) {
+      this.remainingSeconds--;
+    }
+    return this.remainingSeconds;
+  }
+
+  switchSection(sectionId) {
+    const secIdx = this.sections.findIndex(s => s.id === sectionId);
+    if (secIdx !== -1) {
+      this.jumpToQuestion(secIdx, 0);
+    }
+  }
+
+  switchQuestion(questionId) {
+    const sec = this.getCurrentSection();
+    if (!sec || !sec.questions) return;
+    const qIdx = sec.questions.findIndex(q => q.id === questionId);
+    if (qIdx !== -1) {
+      this.jumpToQuestion(this.activeSectionIndex, qIdx);
+    }
+  }
+
+  getPaletteSummaryCounts() {
+    let answered = 0, not_answered = 0, not_visited = 0, marked_for_review = 0, ans_and_marked = 0;
+    this.stateMap.forEach((val) => {
+      const st = val.paletteState;
+      if (st === PALETTE_STATES.ANSWERED) answered++;
+      else if (st === PALETTE_STATES.NOT_ANSWERED) not_answered++;
+      else if (st === PALETTE_STATES.NOT_VISITED) not_visited++;
+      else if (st === PALETTE_STATES.MARKED_FOR_REVIEW) marked_for_review++;
+      else if (st === PALETTE_STATES.ANSWERED_AND_MARKED) ans_and_marked++;
+    });
+    return { answered, not_answered, not_visited, marked_for_review, ans_and_marked };
+  }
+
+  generateSubmissionPayload() {
+    return this.getPayloadForSubmit();
   }
 
   getCurrentQuestion() {

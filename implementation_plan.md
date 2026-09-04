@@ -1,110 +1,101 @@
-# Implementation Plan - Scoped Multi-Tenant Taxonomy & Global Standardized Categories
+# Implementation Plan — AI & PDF Question Studio (Single Upload, Multi-PDF Tabs, Centralized Settings & Popup Editor)
 
-This plan details the technical architecture for **Taxonomy Ownership & Scoping** (Categories & Tags). It introduces **Global Master Taxonomy** (managed by Super Admin) for global content standardization, and **Institute-Private Taxonomy** for private internal exam organization.
-
----
-
-## 🏛️ Architecture & Evaluation of the Provision
-
-### Evaluation: Why this Provision is Excellent
-Your proposed provision solves a critical multi-tenant SaaS challenge:
-1. **Prevents Global Catalog Pollution**: Without standardized global categories, different coaching institutes create duplicate/messy names (`"SSC-Maths"`, `"S.S.C Quantitative"`, `"Maths_SSC_2026"`). Forcing globally published exams to use Super Admin's **Global Master Taxonomy** guarantees a clean, unified public student catalog.
-2. **Private Flexibility**: Teachers can freely create custom private categories/tags (e.g. *"Internal Unit Test 01"*, *"Class 10 Revision"*) for internal institute exams without affecting others.
+This plan details the updated user experience and React architecture for **`AI & PDF Question Studio`**.
 
 ---
 
-## 🧭 Taxonomy Scoping Rules
+## 🎨 Master Studio Layout & Workflow
 
-```
-                       🏷️ TAXONOMY SYSTEM
-                                │
-        ┌───────────────────────┴───────────────────────┐
-        ▼                                               ▼
-🌐 GLOBAL MASTER TAXONOMY                     🏫 INSTITUTE-PRIVATE TAXONOMY
- (Created by Super Admin)                      (Created by Coaching Teachers)
- ├── institute_id = NULL                        ├── institute_id = teacher.institute_id
- ├── is_global = TRUE                           ├── is_global = FALSE
- ├── Visible to ALL Institutes                  ├── Visible ONLY to creating Institute
- └── REQUIRED for Global/Public Content          └── Forbidden on Global/Public Content
+```mermaid
+graph TD
+    A[Teacher Opens Studio Page] --> B[Pane 1: Multi-PDF Viewer & Canvas Snipper]
+    A --> C[Pane 2: AI Question Generator & Scannable Roster]
+    
+    B -->|Upload PDF 1, PDF 2...| B1[Switch between PDFs via Document Tabs]
+    C -->|Click 'Process Active PDF with AI'| D[Fetch API Key from Centralized AI Settings]
+    
+    D -->|Send Active PDF to Gemini API| E[Extract JSON to Scannable Question Roster in Pane 2]
+    B1 -->|Mouse Selection Snip| F[Quick-Assign Snipped Image to Question Field]
+    
+    E --> G[Click '✏️ Edit Question' -> Opens Popup Question Editor Modal]
+    F --> G
+    
+    G -->|Teacher Clicks 'Save Verified Questions'| H[Batch Upload Images & Insert Questions into MySQL]
 ```
 
-### 1. Global Master Taxonomy (`institute_id = NULL`, `is_global = TRUE`)
-- Created & moderated exclusively by **Super Admin**.
-- Visible to **ALL** Teachers, Institutes, and Students.
-- Can be used for **both** private internal exams and **Globally Published** (`is_public = TRUE` / `is_global = TRUE`) exams & questions.
+---
 
-### 2. Institute-Private Taxonomy (`institute_id = teacher.institute_id`, `is_global = FALSE`)
-- Created by a Coaching Teacher/Admin for their internal institute organization.
-- Visible **ONLY** to users of that specific Coaching Institute.
-- **Enforced Restriction**: An exam or question tagged with an Institute-Private Category/Tag **CANNOT** be published globally. If a teacher toggles **"Publish Globally"**, the system validates that a Global Master Category is selected.
+## 🛠️ Detailed Component & UX Specification
 
-### 3. Super Admin Taxonomy Promotion
-- Super Admin can convert any Institute-Private Category or Tag into a **Global Master Category/Tag** with one click.
+### 1. Pane 1 (Left): Multi-PDF Document Workspace & Snipping Canvas
+- **Multi-PDF Document Selector**:
+  - Top tab bar: `📄 Paper_2025.pdf ✖` | `📄 Practice_Set_2.pdf ✖` | `➕ Add PDF`.
+  - Teachers can load multiple documents into Pane 1 and switch between them instantly.
+- **Canvas Snipper**:
+  - Drag mouse on PDF page canvas to crop any diagram/table/equation.
+  - Floating Quick-Assign menu injects the snipped image directly into target question fields (*Passage*, *Question*, *Option A–F*, *Explanation*).
+
+### 2. Pane 2 (Right): AI Trigger & Scannable Question Cards
+- **Single AI Action Bar**:
+  - Button: **`🤖 Process Active PDF with AI`** (Page range selector: *All Pages*, *Page 1*, *Pages 1–5*).
+  - Uses the active PDF loaded in Pane 1. Zero duplicate file uploads required!
+- **Scannable Question Roster**:
+  - Compact, scannable list of extracted questions.
+  - Displays Question Index, English/Hindi snippet, options, attached image thumbnails, and verification badges (`Verified` / `Needs Review`).
+  - Action buttons per card: **`✏️ Edit & Verify`**, **`🗑️ Delete`**, **`📋 Duplicate`**.
+
+### 3. Centralized AI API Key Settings Page
+- Key stored in **Settings Page** under **"🤖 AI Engine Configuration"**:
+  - Supported Providers: **Google Gemini (Recommended - Free & Fast)**, OpenAI GPT-4o.
+  - Encrypted storage in `localStorage` or institute settings table.
+- **In-Studio Instruction Banner**:
+  - If no API key is configured, Pane 2 displays an informative callout banner:
+    > *"⚠️ AI Key Required: Please add your Gemini API Key in Settings to enable AI PDF Auto-Extraction."*
+    > *Step 1: Get a free key at [aistudio.google.com](https://aistudio.google.com).*  
+    > *Step 2: Click [⚙️ Configure AI Key in Settings] to paste key.*
+
+### 4. Popup Question Editor Modal (`QuestionEditorModal.jsx`)
+- Clicking **`✏️ Edit & Verify`** opens a spacious popup modal:
+  - Rich bilingual text inputs (English / Hindi).
+  - Dynamic 2 to 6 Options builder with correct answer radio buttons.
+  - Thumbnail Cards for attached images with **"🗑️"** remove buttons.
+  - Live real-time KaTeX math rendering preview.
+
+### 5. Deferred Database Saving
+- Snipped images remain in browser memory as local Blob URLs (`URL.createObjectURL(blob)`).
+- Questions and images are uploaded to `/images/upload` and inserted into MySQL `question_bank` **only when clicking "Save Verified Questions"**.
 
 ---
 
-## 🛑 User Review Required
+## User Review Required
 
 > [!IMPORTANT]
-> **Global Publish Validation**:
-> When a teacher attempts to mark an exam or question as **Globally Public**, the backend will validate:
-> - The assigned Category must be a **Global Master Category** (`is_global = TRUE` / `institute_id IS NULL`).
-> - If a private institute category is attached, the app will show a helpful prompt: *"To publish globally, please select a standardized Global Master Category (e.g. SSC CGL, JEE Main, NEET)."*
-
-> [!NOTE]
-> **Category Dropdown Filtering**:
-> In Exam & Question creation forms, the category dropdown will display:
-> - **🌐 Global Categories** (Grouped under Global Master Header)
-> - **🏫 My Institute Categories** (Grouped under My Institute Header)
+> **Key UX Approvals**:
+> 1. **No Duplicate PDF Upload**: Pane 1 handles PDF document management & tab switching; Pane 2 automatically reads the active PDF from Pane 1 for AI processing.
+> 2. **Centralized Settings for AI Key**: API key is managed in Settings with clear instructions on getting a free Google Gemini key.
+> 3. **Popup Editor Modal**: Keeps Pane 2 clean and scannable while giving a full modal popup for detailed question editing.
 
 ---
 
-## 🛠️ Proposed Changes & File Checklist
+## Proposed Changes
 
-### 1. Database Schema & Backend Updates
-
-#### [MODIFY] [schema.sql](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/schema.sql) & [server/db.js](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/server/db.js)
-- Add `institute_id INT NULL` and `is_global BOOLEAN DEFAULT TRUE` to `categories` table.
-- Add `institute_id INT NULL` and `is_global BOOLEAN DEFAULT TRUE` to `tags` table.
-
-#### [MODIFY] [server/routes/categories.js](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/server/routes/categories.js) (or category handlers)
-- `GET /api/categories`: Filter `WHERE institute_id IS NULL OR institute_id = req.user.institute_id OR is_global = 1`.
-- `POST /api/categories`:
-  - If Super Admin: `institute_id = NULL`, `is_global = TRUE`.
-  - If Teacher: `institute_id = req.user.institute_id`, `is_global = FALSE`.
-
-#### [MODIFY] [server/routes/tags.js](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/server/routes/tags.js)
-- `GET /api/tags`: Filter `WHERE institute_id IS NULL OR institute_id = req.user.institute_id`.
-- `POST /api/tags`: Assign `institute_id` based on role.
-
-#### [MODIFY] [server/routes/exams.js](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/server/routes/exams.js)
-- Enforce validation in `POST /api/exams` & `PUT /api/exams/:id`: If `is_public = TRUE`, reject if `category_id` is an institute-private category.
+### React Components (`src/components/ai-studio/`)
+- **`AiPdfStudioApp.jsx`**: Main Studio workspace layout.
+- **`PdfMultiViewerCanvas.jsx`**: Multi-PDF tab switcher & canvas snipper (Pane 1).
+- **`AiQuestionRoster.jsx`**: AI trigger bar & scannable question list (Pane 2).
+- **`QuestionEditorModal.jsx`**: Rich popup modal for detailed question editing.
+- **`AiSettingsTab.jsx`**: AI Key settings component for Settings View.
 
 ---
 
-### 2. Frontend Views & UI Updates
+## Verification Plan
 
-#### [MODIFY] [src/views/TaxonomyView.js](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/src/views/TaxonomyView.js)
-- Display two distinct tabs/sections: **"🌐 Global Master Taxonomy"** and **"🏫 My Institute Private Taxonomy"**.
-- Super Admin sees a **"Promote to Global Master"** button on institute categories.
-
-#### [MODIFY] [src/views/MasterQuestionEditorView.js](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/src/views/MasterQuestionEditorView.js) & [src/views/InstituteAdminView.js](file:///Users/sarfaraj/EdutorAi_Quiz_Mock/src/views/InstituteAdminView.js)
-- Group Category dropdown into `<optgroup label="🌐 Global Master Categories">` and `<optgroup label="🏫 My Institute Private Categories">`.
-- Automatically validate category selection when **"Publish Globally"** is checked.
-
----
-
-## 🧪 Verification Plan
-
-### Automated Build Verification
-1. Run `npm run build` to verify clean compilation with zero syntax errors.
-2. Verify database migration adds `institute_id` and `is_global` to `categories` and `tags`.
+### Automated Verification
+- Run `npm run build` to verify React JSX compilation and module bundling.
 
 ### Manual Verification
-1. **Teacher Action**:
-   - Create private category `"Batch 2026 Revision"`.
-   - Create private exam assigned to `"Batch 2026 Revision"` $\rightarrow$ succeeds.
-   - Try to publish exam globally $\rightarrow$ system prompts to select a Global Master Category.
-2. **Super Admin Action**:
-   - Create global category `"UPSC Civil Services"`.
-   - Teacher selects `"UPSC Civil Services"` and publishes exam globally $\rightarrow$ succeeds.
+1. **Multi-PDF Tab Test**: Load 2 PDFs in Pane 1 ➔ verify tab switching and canvas rendering.
+2. **AI Settings Test**: Click **Configure AI Key** ➔ confirm redirection to Settings ➔ save Gemini key.
+3. **AI Process Test**: Click **Process Active PDF with AI** in Pane 2 ➔ confirm AI extracts questions from Pane 1's PDF without re-uploading.
+4. **Popup Editor Test**: Click **Edit & Verify** on a question card ➔ verify popup modal opens with KaTeX preview.
+5. **Deferred Save Test**: Click **Save Verified Questions** ➔ verify batch image uploads and MySQL insertion.

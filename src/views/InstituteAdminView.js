@@ -4,7 +4,7 @@ import { createModal } from '../components/Modal.js';
 
 let currentNavigate = null;
 
-export function renderInstituteAdminView(navigate) {
+export function renderInstituteAdminView(navigate, initialTab = 'exams') {
   currentNavigate = navigate;
   const container = document.createElement('div');
   container.className = 'view-container fade-in';
@@ -18,40 +18,6 @@ export function renderInstituteAdminView(navigate) {
       <div style="display: flex; gap: 10px; align-items: center;">
         <span class="institute-badge" id="inst-code-badge"><i class="ri-key-2-line"></i> Code: Loading...</span>
       </div>
-    </div>
-
-    <!-- Stats Overview Cards -->
-    <div class="saas-stats-grid">
-      <div class="saas-stat-card">
-        <div class="saas-stat-icon"><i class="ri-user-follow-line"></i></div>
-        <div class="saas-stat-info">
-          <span class="saas-stat-value" id="inst-stat-students">-</span>
-          <span class="saas-stat-label">Enrolled Students</span>
-        </div>
-      </div>
-
-      <div class="saas-stat-card">
-        <div class="saas-stat-icon"><i class="ri-computer-line"></i></div>
-        <div class="saas-stat-info">
-          <span class="saas-stat-value" id="inst-stat-exams">-</span>
-          <span class="saas-stat-label">Live Online Exams</span>
-        </div>
-      </div>
-
-      <div class="saas-stat-card">
-        <div class="saas-stat-icon"><i class="ri-file-list-3-line"></i></div>
-        <div class="saas-stat-info">
-          <span class="saas-stat-value" id="inst-stat-quizzes">-</span>
-          <span class="saas-stat-label">Practice Quizzes</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Navigation Tabs -->
-    <div style="display: flex; gap: 12px; border-bottom: 2px solid var(--border-color); margin-bottom: 24px; flex-wrap: wrap;">
-      <button id="tab-inst-exams" class="btn-text active" style="font-weight: 700; padding: 10px 16px; border-bottom: 3px solid var(--primary);">CBT Exam Engine</button>
-      <button id="tab-inst-batches" class="btn-text" style="font-weight: 700; padding: 10px 16px; color: var(--text-muted);">🏫 Batches & Classes</button>
-      <button id="tab-inst-students" class="btn-text" style="font-weight: 700; padding: 10px 16px; color: var(--text-muted);">Student Roster</button>
     </div>
 
     <!-- Tab 1: CBT Exam Engine -->
@@ -91,9 +57,48 @@ export function renderInstituteAdminView(navigate) {
 
     <!-- Tab 2: Batches & Classes -->
     <div id="section-inst-batches" style="display: none;">
-      
-      <!-- Pending Student Join Requests Card -->
-      <div class="card" style="padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--warning, #f59e0b);">
+      <!-- Sub-Tab Navigation Header -->
+      <div style="display: flex; gap: 10px; border-bottom: 2px solid var(--border-color); margin-bottom: 20px; flex-wrap: wrap;">
+        <button id="subtab-inst-batches-list" class="btn-text active" style="font-weight: 700; padding: 8px 14px; border-bottom: 3px solid var(--primary); color: var(--text-main);">
+          🏷️ Batches & Classes Directory
+        </button>
+        <button id="subtab-inst-batches-pending" class="btn-text" style="font-weight: 700; padding: 8px 14px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px;">
+          ⏳ Pending Join Requests <span id="subtab-pending-badge" class="badge" style="background: rgba(245, 158, 11, 0.15); color: #d97706; font-weight: 700; font-size: 0.78rem; padding: 2px 8px; border-radius: 12px;">0</span>
+        </button>
+      </div>
+
+      <!-- Sub-Tab 1: Batches Directory List -->
+      <div id="subtab-content-batches-list" class="card" style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h3 style="font-size: 1.2rem; font-weight: 700;">Batches, Classes & Standards Management</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Create batches (e.g. SSC CGL Morning 2026, Class 10 Science) to target exams specifically to student groups.</p>
+          </div>
+          <button id="btn-create-batch" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <i class="ri-team-line"></i> + Create New Batch/Class
+          </button>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="custom-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th>Batch / Class Name</th>
+                <th>Code</th>
+                <th>Description</th>
+                <th>Enrolled Students</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="batches-table-body">
+              <tr><td colspan="5" style="text-align: center; padding: 30px;">Loading batches...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sub-Tab 2: Pending Student Join Requests Card -->
+      <div id="subtab-content-batches-pending" class="card" style="padding: 20px; display: none; border-left: 4px solid var(--warning, #f59e0b);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div>
             <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">
@@ -125,16 +130,18 @@ export function renderInstituteAdminView(navigate) {
           </table>
         </div>
       </div>
+    </div>
 
-      <!-- Existing Batches List -->
+    <!-- Tab 3: Student Roster -->
+    <div id="section-inst-students" style="display: none;">
       <div class="card" style="padding: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
           <div>
-            <h3 style="font-size: 1.2rem; font-weight: 700;">Batches, Classes & Standards Management</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Create batches (e.g. SSC CGL Morning 2026, Class 10 Science) to target exams specifically to student groups.</p>
+            <h3 style="font-size: 1.2rem; font-weight: 700;">Enrolled Student Roster</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Students linked to your institute using your unique institute code.</p>
           </div>
-          <button id="btn-create-batch" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
-            <i class="ri-team-line"></i> + Create New Batch/Class
+          <button id="btn-copy-code" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 6px;">
+            <i class="ri-file-copy-line"></i> Copy Student Invite Link
           </button>
         </div>
 
@@ -142,17 +149,65 @@ export function renderInstituteAdminView(navigate) {
           <table class="custom-table" style="width: 100%;">
             <thead>
               <tr>
-                <th>Batch / Class Name</th>
-                <th>Code</th>
-                <th>Description</th>
-                <th>Enrolled Students</th>
+                <th>Student Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Enrolled Batch</th>
+                <th>Total Attempts</th>
+                <th>Average Accuracy</th>
+                <th>Joined Date</th>
+              </tr>
+            </thead>
+            <tbody id="students-table-body">
+              <tr><td colspan="7" style="text-align: center; padding: 30px;">Loading student roster...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: View & Manage Enrolled Students in Batch -->
+    <div id="modal-batch-students" class="modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1050; align-items: center; justify-content: center;">
+      <div class="card" style="width: 100%; max-width: 760px; max-height: 85vh; display: flex; flex-direction: column; padding: 24px; background: var(--card-bg);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+          <div>
+            <h3 id="modal-batch-students-title" style="font-size: 1.3rem; font-weight: 800; color: var(--text-main); margin: 0;">👥 Enrolled Students</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">Review active batch members or revoke batch access.</p>
+          </div>
+          <button id="close-modal-batch-students" style="background: none; border: none; font-size: 1.6rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+        </div>
+
+        <!-- Search Bar -->
+        <div style="margin-bottom: 16px;">
+          <input
+            type="text"
+            id="search-batch-students"
+            class="form-control"
+            placeholder="🔍 Search student by name or email..."
+            style="padding: 8px 14px; font-size: 0.9rem;"
+          />
+        </div>
+
+        <!-- Student Table -->
+        <div style="overflow-y: auto; flex: 1; border: 1px solid var(--border-color); border-radius: 8px;">
+          <table class="custom-table" style="width: 100%; font-size: 0.88rem;">
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>Email</th>
+                <th>Enrolled Date</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody id="batches-table-body">
-              <tr><td colspan="5" style="text-align: center; padding: 30px;">Loading batches...</td></tr>
+            <tbody id="table-body-batch-students">
+              <tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">Loading batch students...</td></tr>
             </tbody>
           </table>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+          <button type="button" id="btn-close-batch-students-modal" class="btn btn-outline">Close Window</button>
         </div>
       </div>
     </div>
@@ -339,8 +394,8 @@ export function renderInstituteAdminView(navigate) {
   `;
 
   setTimeout(() => {
-    setupInstituteAdminEvents(container);
-    loadInstituteAdminData(container);
+    setupInstituteAdminEvents(container, initialTab);
+    loadInstituteAdminData(container, initialTab);
   }, 0);
 
   return container;
@@ -350,14 +405,28 @@ let cachedExams = [];
 let cachedStudents = [];
 let cachedBatches = [];
 
-async function loadInstituteAdminData(container) {
+async function loadInstituteAdminData(container, initialTab = 'exams') {
   try {
     const userRes = await apiRequest('/auth/me');
     const user = userRes.user;
 
-    if (user.institute_name) {
-      container.querySelector('#inst-title').textContent = `${user.institute_name} Admin Portal 🏢`;
+    const instName = user.institute_name || 'Coaching Institute';
+    const titleEl = container.querySelector('#inst-title');
+    const subtitleEl = container.querySelector('#inst-subtitle');
+
+    if (titleEl && subtitleEl) {
+      if (initialTab === 'batches') {
+        titleEl.textContent = `🏷️ Batches & Classes Management`;
+        subtitleEl.textContent = `Create custom batches, standards, manage student enrollments, and approve pending join requests.`;
+      } else if (initialTab === 'students') {
+        titleEl.textContent = `👥 Enrolled Student Roster`;
+        subtitleEl.textContent = `Manage students enrolled in ${instName}, track test performance, and copy invite links.`;
+      } else {
+        titleEl.textContent = `💻 Online CBT Exam Engine Setup`;
+        subtitleEl.textContent = `Create multi-section online CBT exams with positive/negative marking and schedule windows.`;
+      }
     }
+
     if (user.institute_code) {
       container.querySelector('#inst-code-badge').innerHTML = `<i class="ri-key-2-line"></i> Code: ${user.institute_code}`;
     }
@@ -505,9 +574,12 @@ async function loadInstituteAdminData(container) {
       }
     }
 
-    container.querySelector('#inst-stat-exams').textContent = cachedExams.length;
-    container.querySelector('#inst-stat-students').textContent = cachedStudents.length;
-    container.querySelector('#inst-stat-quizzes').textContent = (quizzesRes.quizzes || []).length;
+    const statExams = container.querySelector('#inst-stat-exams');
+    const statStudents = container.querySelector('#inst-stat-students');
+    const statQuizzes = container.querySelector('#inst-stat-quizzes');
+    if (statExams) statExams.textContent = cachedExams.length;
+    if (statStudents) statStudents.textContent = cachedStudents.length;
+    if (statQuizzes) statQuizzes.textContent = (quizzesRes.quizzes || []).length;
 
     renderExamsTable(container, cachedExams);
     renderBatchesTable(container, cachedBatches);
@@ -521,6 +593,7 @@ async function loadInstituteAdminData(container) {
 async function loadPendingBatchRequests(container) {
   const tbody = container.querySelector('#pending-requests-table-body');
   const countBadge = container.querySelector('#pending-requests-count-badge');
+  const subtabBadge = container.querySelector('#subtab-pending-badge');
   if (!tbody) return;
 
   try {
@@ -528,6 +601,7 @@ async function loadPendingBatchRequests(container) {
     const requests = res.requests || [];
 
     if (countBadge) countBadge.textContent = `${requests.length} Pending`;
+    if (subtabBadge) subtabBadge.textContent = requests.length;
 
     if (requests.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">No pending student batch join requests.</td></tr>';
@@ -610,14 +684,29 @@ function renderBatchesTable(container, list) {
       <td style="font-weight: 700; color: var(--text-main);">${b.name}</td>
       <td><span class="badge-tag">${b.code || 'DEFAULT'}</span></td>
       <td style="color: var(--text-muted); font-size: 0.88rem;">${b.description || '-'}</td>
-      <td style="font-weight: 700;">${b.student_count || 0} Students</td>
+      <td style="font-weight: 700;">
+        <span class="btn-view-batch-students-count" data-id="${b.id}" data-name="${b.name}" style="cursor: pointer; color: var(--primary); text-decoration: underline;" title="Click to view enrolled students">
+          ${b.student_count || 0} Students
+        </span>
+      </td>
       <td>
-        <button class="icon-action-btn btn-danger btn-delete-batch" data-id="${b.id}" title="Delete Batch">
-          <i class="ri-delete-bin-line"></i>
-        </button>
+        <div className="btn-icon-group" style="display: flex; gap: 8px;">
+          <button class="btn btn-outline btn-sm btn-view-batch-students" data-id="${b.id}" data-name="${b.name}" title="View Enrolled Students in Batch" aria-label="View Enrolled Students in Batch">
+            <i class="ri-user-shared-line"></i> <span class="btn-text-desktop">Enrolled Students</span>
+          </button>
+          <button class="icon-action-btn btn-danger btn-delete-batch" data-id="${b.id}" title="Delete Batch" aria-label="Delete Batch">
+            <i class="ri-delete-bin-line"></i>
+          </button>
+        </div>
       </td>
     </tr>
   `).join('');
+
+  tbody.querySelectorAll('.btn-view-batch-students, .btn-view-batch-students-count').forEach(el => {
+    el.addEventListener('click', () => {
+      openBatchStudentsModal(container, el.dataset.id, el.dataset.name);
+    });
+  });
 
   tbody.querySelectorAll('.btn-delete-batch').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -628,6 +717,124 @@ function renderBatchesTable(container, list) {
         } catch (e) { alert(e.message); }
       }
     });
+  });
+}
+
+let currentBatchStudentList = [];
+
+async function openBatchStudentsModal(container, batchId, batchName) {
+  const modal = container.querySelector('#modal-batch-students');
+  const title = container.querySelector('#modal-batch-students-title');
+  const tbody = container.querySelector('#table-body-batch-students');
+  const searchInput = container.querySelector('#search-batch-students');
+  if (!modal || !tbody) return;
+
+  if (title) title.textContent = `👥 Enrolled Students - ${batchName}`;
+  if (searchInput) searchInput.value = '';
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">Loading batch students...</td></tr>';
+  modal.style.display = 'flex';
+
+  try {
+    const res = await apiRequest(`/exams/batches/${batchId}/enrolled-students`);
+    currentBatchStudentList = res.students || [];
+
+    renderBatchStudentsTable(container, batchId, batchName, currentBatchStudentList, '');
+
+    if (searchInput) {
+      searchInput.oninput = (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        renderBatchStudentsTable(container, batchId, batchName, currentBatchStudentList, query);
+      };
+    }
+
+  } catch (err) {
+    console.error('Error fetching batch students:', err);
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px; color: #ef4444;">Failed to load batch students.</td></tr>';
+  }
+}
+
+function renderBatchStudentsTable(container, batchId, batchName, students, searchQuery) {
+  const tbody = container.querySelector('#table-body-batch-students');
+  if (!tbody) return;
+
+  const filtered = students.filter(s =>
+    (s.student_name || '').toLowerCase().includes(searchQuery) ||
+    (s.student_email || '').toLowerCase().includes(searchQuery)
+  );
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted);">No enrolled students found matching search.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(s => {
+    const isApproved = s.status === 'approved';
+    const isPending = s.status === 'pending';
+    const isRejected = s.status === 'rejected';
+
+    let statusBadge = `<span class="badge badge-success" style="background: rgba(34, 197, 94, 0.15); color: #16a34a; font-weight: 700; padding: 4px 10px; border-radius: 20px;">Active Enrolled</span>`;
+    if (isPending) {
+      statusBadge = `<span class="badge badge-warning" style="background: rgba(245, 158, 11, 0.15); color: #d97706; font-weight: 700; padding: 4px 10px; border-radius: 20px;">Pending Approval</span>`;
+    } else if (isRejected) {
+      statusBadge = `<span class="badge badge-danger" style="background: rgba(239, 68, 68, 0.15); color: #dc2626; font-weight: 700; padding: 4px 10px; border-radius: 20px;">Access Revoked</span>`;
+    }
+
+    return `
+      <tr>
+        <td style="font-weight: 700; color: var(--text-main);">${s.student_name}</td>
+        <td>${s.student_email}</td>
+        <td>${new Date(s.enrolled_at).toLocaleDateString()}</td>
+        <td>${statusBadge}</td>
+        <td>
+          ${isApproved ? `
+            <button class="btn btn-danger btn-sm btn-action-revoke-student" data-uid="${s.user_id}" data-bid="${batchId}" data-name="${s.student_name}" title="Revoke Student Batch Access">
+              <i class="ri-user-unfollow-line"></i> <span class="btn-text-desktop">Revoke Access</span>
+            </button>
+          ` : `
+            <button class="btn btn-success btn-sm btn-action-approve-student" data-uid="${s.user_id}" data-bid="${batchId}" data-name="${s.student_name}" title="Approve/Restore Student Batch Access">
+              <i class="ri-user-follow-line"></i> <span class="btn-text-desktop">Re-Approve Access</span>
+            </button>
+          `}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Handle Revoke
+  tbody.querySelectorAll('.btn-action-revoke-student').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm(`Revoke batch access for ${btn.dataset.name}? The student will immediately lose access to all batch exams and quizzes.`)) return;
+      btn.disabled = true;
+      try {
+        await apiRequest('/exams/batches/approve-request', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: btn.dataset.uid, batch_id: btn.dataset.bid, action: 'revoke' })
+        });
+        openBatchStudentsModal(container, batchId, batchName);
+        loadInstituteAdminData(container);
+      } catch (e) {
+        alert(e.message);
+        btn.disabled = false;
+      }
+    };
+  });
+
+  // Handle Re-Approve
+  tbody.querySelectorAll('.btn-action-approve-student').forEach(btn => {
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        await apiRequest('/exams/batches/approve-request', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: btn.dataset.uid, batch_id: btn.dataset.bid, action: 'approve' })
+        });
+        openBatchStudentsModal(container, batchId, batchName);
+        loadInstituteAdminData(container);
+      } catch (e) {
+        alert(e.message);
+        btn.disabled = false;
+      }
+    };
   });
 }
 
@@ -769,7 +976,7 @@ function renderStudentsTable(container, list) {
   `).join('');
 }
 
-function setupInstituteAdminEvents(container) {
+function setupInstituteAdminEvents(container, initialTab = 'exams') {
   const tabExams = container.querySelector('#tab-inst-exams');
   const tabBatches = container.querySelector('#tab-inst-batches');
   const tabStud = container.querySelector('#tab-inst-students');
@@ -802,6 +1009,53 @@ function setupInstituteAdminEvents(container) {
   if (tabBatches) tabBatches.addEventListener('click', () => switchTab(tabBatches, secBatches));
   if (tabStud) tabStud.addEventListener('click', () => switchTab(tabStud, secStud));
   if (tabBranding) tabBranding.addEventListener('click', () => switchTab(tabBranding, secBranding));
+
+  // Initial tab activation & section visibility for standalone pages
+  [secExams, secBatches, secStud, secBranding].forEach(s => { if (s) s.style.display = 'none'; });
+
+  if (initialTab === 'batches') {
+    if (secBatches) secBatches.style.display = 'block';
+  } else if (initialTab === 'students') {
+    if (secStud) secStud.style.display = 'block';
+  } else {
+    if (secExams) secExams.style.display = 'block';
+  }
+
+  // Sub-Tab Navigation inside Batches & Classes
+  const subTabList = container.querySelector('#subtab-inst-batches-list');
+  const subTabPending = container.querySelector('#subtab-inst-batches-pending');
+  const contentList = container.querySelector('#subtab-content-batches-list');
+  const contentPending = container.querySelector('#subtab-content-batches-pending');
+
+  const switchSubTab = (activeSubBtn, showSubContent) => {
+    [subTabList, subTabPending].forEach(b => {
+      if (b) {
+        b.classList.remove('active');
+        b.style.borderBottom = 'none';
+        b.style.color = 'var(--text-muted)';
+      }
+    });
+    [contentList, contentPending].forEach(c => { if (c) c.style.display = 'none'; });
+
+    if (activeSubBtn && showSubContent) {
+      activeSubBtn.classList.add('active');
+      activeSubBtn.style.borderBottom = '3px solid var(--primary)';
+      activeSubBtn.style.color = 'var(--text-main)';
+      showSubContent.style.display = 'block';
+    }
+  };
+
+  if (subTabList) subTabList.addEventListener('click', () => switchSubTab(subTabList, contentList));
+  if (subTabPending) subTabPending.addEventListener('click', () => switchSubTab(subTabPending, contentPending));
+
+  // Batch Students Modal Close handlers
+  const modalBatchStudents = container.querySelector('#modal-batch-students');
+  const closeBtn1 = container.querySelector('#close-modal-batch-students');
+  const closeBtn2 = container.querySelector('#btn-close-batch-students-modal');
+
+  const closeBatchModal = () => { if (modalBatchStudents) modalBatchStudents.style.display = 'none'; };
+  if (closeBtn1) closeBtn1.addEventListener('click', closeBatchModal);
+  if (closeBtn2) closeBtn2.addEventListener('click', closeBatchModal);
 
   // Copy Subdomain & Fallback Link handlers
   const btnCopySub = container.querySelector('#btn-copy-subdomain');
