@@ -189,17 +189,17 @@ export function renderExamAnalysisView(attemptId, navigate) {
         const isSelectedOpt = optIdx === item.selected_option;
         const statsPct = (item.option_stats_pct && item.option_stats_pct[optIdx]) !== undefined ? item.option_stats_pct[optIdx] : 0;
 
-        let optClass = '';
-        if (isCorrectOpt) optClass = 'background: #e8f5e9; border: 1.5px solid #2ecc71;';
-        else if (isSelectedOpt && !isCorrectOpt) optClass = 'background: #ffebee; border: 1.5px solid #e74c3c;';
+        let optClass = 'color: var(--text-main); background: var(--bg-color); border: 1px solid var(--border-color);';
+        if (isCorrectOpt) optClass = 'background: rgba(39, 174, 96, 0.15); border: 1.5px solid #2ecc71; color: var(--text-main);';
+        else if (isSelectedOpt && !isCorrectOpt) optClass = 'background: rgba(231, 76, 60, 0.15); border: 1.5px solid #e74c3c; color: var(--text-main);';
 
         return `
-          <div style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 8px; ${optClass}">
-            <div style="display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px;">
+          <div style="padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; ${optClass}">
+            <div style="display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; align-items: center;">
               <span>
-                <strong>${optLabels[optIdx]}</strong> ${renderRichContent(optText)}
-                ${isCorrectOpt ? ' <strong style="color: #27ae60;">(Correct Answer)</strong>' : ''}
-                ${isSelectedOpt && !isCorrectOpt ? ' <strong style="color: #c0392b;">(Your Answer)</strong>' : ''}
+                <strong style="color: ${isCorrectOpt ? '#2ecc71' : isSelectedOpt ? '#e74c3c' : 'var(--text-main)'}; margin-right: 6px;">${optLabels[optIdx]}</strong> ${renderRichContent(optText)}
+                ${isCorrectOpt ? ` <strong style="color: #2ecc71;">✓ Correct Option${isSelectedOpt ? ' (Your Choice)' : ''}</strong>` : ''}
+                ${isSelectedOpt && !isCorrectOpt ? ' <strong style="color: #e74c3c;">✕ Your Choice</strong>' : ''}
               </span>
               <span style="font-weight: 700; color: var(--text-muted); font-size: 0.82rem;">${statsPct}% students</span>
             </div>

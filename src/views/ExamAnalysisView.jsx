@@ -363,21 +363,47 @@ export function ExamAnalysisView({ attemptId, navigate }) {
                     const isCorrectOpt = optIdx === item.correct_option_index;
                     const isSelectedOpt = optIdx === item.selected_option;
 
-                    let optStyle = { padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '8px' };
+                    let optStyle = {
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      marginBottom: '8px',
+                      color: 'var(--text-main)',
+                      background: 'var(--bg-color)'
+                    };
                     if (isCorrectOpt) {
-                      optStyle = { ...optStyle, background: '#e8f5e9', border: '1.5px solid #2ecc71' };
+                      optStyle = {
+                        ...optStyle,
+                        background: 'rgba(39, 174, 96, 0.15)',
+                        border: '1.5px solid #2ecc71'
+                      };
                     } else if (isSelectedOpt && !isCorrectOpt) {
-                      optStyle = { ...optStyle, background: '#ffebee', border: '1.5px solid #e74c3c' };
+                      optStyle = {
+                        ...optStyle,
+                        background: 'rgba(231, 76, 60, 0.15)',
+                        border: '1.5px solid #e74c3c'
+                      };
                     }
 
                     return (
                       <div key={optIdx} style={optStyle}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92rem', alignItems: 'center' }}>
                           <span>
-                            <strong>{optLabels[optIdx]}</strong> <RichText content={optText} />
+                            <strong style={{ color: isCorrectOpt ? '#2ecc71' : isSelectedOpt ? '#e74c3c' : 'var(--text-main)', marginRight: '6px' }}>
+                              {optLabels[optIdx]}
+                            </strong>{' '}
+                            <RichText content={optText} />
                           </span>
-                          {isCorrectOpt && <strong style={{ color: '#27ae60' }}>✓ Correct Option</strong>}
-                          {isSelectedOpt && !isCorrectOpt && <strong style={{ color: '#c0392b' }}>✕ Your Choice</strong>}
+                          {isCorrectOpt && (
+                            <strong style={{ color: '#2ecc71', flexShrink: 0, marginLeft: '12px' }}>
+                              ✓ Correct Option{isSelectedOpt ? ' (Your Choice)' : ''}
+                            </strong>
+                          )}
+                          {isSelectedOpt && !isCorrectOpt && (
+                            <strong style={{ color: '#e74c3c', flexShrink: 0, marginLeft: '12px' }}>
+                              ✕ Your Choice
+                            </strong>
+                          )}
                         </div>
                       </div>
                     );

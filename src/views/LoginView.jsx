@@ -171,12 +171,13 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
     setAlertInfo({ show: false, type: '', message: '' });
 
     try {
-      setupRecaptcha('recaptcha-container');
-      const confirmation = await sendPhoneOtp(phoneNumber);
+      const verifier = setupRecaptcha('recaptcha-container');
+      const confirmation = await sendPhoneOtp(phoneNumber, verifier);
       setPhoneConfirmationResult(confirmation);
       setOtpStep(2);
       setAlertInfo({ show: true, type: 'success', message: 'OTP sent! Please check your mobile SMS.' });
     } catch (err) {
+      console.error('🔴 Error sending Phone OTP:', err);
       setAlertInfo({ show: true, type: 'danger', message: err.message || 'Error sending OTP SMS.' });
     } finally {
       setSubmitting(false);
@@ -194,16 +195,31 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
 
     try {
       const userCred = await confirmPhoneOtp(phoneConfirmationResult, otpCode);
-      const idToken = await userCred.user.getIdToken();
+      const idToken = userCred.idToken;
 
-      const res = await apiRequest('/auth/login', {
+      const response = await fetch('/api/auth/phone-login', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ firebaseIdToken: idToken, phone_number: phoneNumber })
       });
 
-      await handlePostAuthSuccess(res);
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData.message || 'Phone authentication failed');
+      }
+
+      // Save Auth State
+      localStorage.setItem('auth_token', resData.token);
+      localStorage.setItem('user', JSON.stringify(resData.user));
+
+      if (resData.user.role === 'institute_admin' || resData.user.role === 'teacher') {
+        navigate('admin-dashboard');
+      } else {
+        navigate('dashboard');
+      }
     } catch (err) {
-      setAlertInfo({ show: true, type: 'danger', message: err.message || 'Invalid OTP code.' });
+      console.error('🔴 Error verifying Phone OTP:', err);
+      setAlertInfo({ show: true, type: 'danger', message: err.message || 'OTP verification failed.' });
     } finally {
       setSubmitting(false);
     }
@@ -244,14 +260,16 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
       className="view-container fade-in"
       style={{
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '100vh',
+        minHeight: '100dvh',
         boxSizing: 'border-box',
-        padding: '20px 16px'
+        padding: '20px 16px calc(20px + env(safe-area-inset-bottom, 0px)) 16px',
+        overflowY: 'auto'
       }}
     >
-      <div className="auth-card" style={{ maxWidth: '480px', width: '100%' }}>
+      <div className="auth-card" style={{ maxWidth: '480px', width: '100%', maxHeight: 'calc(100dvh - 40px)', overflowY: 'auto', margin: 'auto 0' }}>
         {/* Header / Logo */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div className="auth-logo-badge" style={{ margin: '0 auto 12px' }}>

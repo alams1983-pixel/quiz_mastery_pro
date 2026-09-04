@@ -107,7 +107,8 @@ export function setupRecaptcha(containerId = 'recaptcha-container') {
  * Send Phone OTP
  */
 export async function sendPhoneOtp(phoneNumber, appVerifier) {
-  const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+  const verifier = appVerifier || window.recaptchaVerifier || setupRecaptcha();
+  const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, verifier);
   return confirmationResult;
 }
 
