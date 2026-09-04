@@ -197,14 +197,14 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
       const userCred = await confirmPhoneOtp(phoneConfirmationResult, otpCode);
       const idToken = userCred.idToken;
 
-      const tenantSlug = currentBranding ? (currentBranding.slug || currentBranding.code) : getTenantFromURL();
+      const tenantSlug = activeTenantBranding ? (activeTenantBranding.slug || activeTenantBranding.code) : urlSlug;
 
       const res = await apiRequest('/auth/firebase-login', {
         method: 'POST',
         body: JSON.stringify({
           idToken,
           phone_number: phoneNumber,
-          account_type: isStudentPortal ? 'student' : (accountType || 'teacher'),
+          account_type: isStudentPortal ? 'student' : 'teacher',
           institute_slug: tenantSlug
         })
       });
