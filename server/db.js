@@ -88,8 +88,11 @@ export async function initDatabase() {
     await addColumnSafely('exams', 'is_all_batches', 'BOOLEAN DEFAULT TRUE');
     await addColumnSafely('exams', 'allow_section_switch', 'BOOLEAN DEFAULT TRUE');
     await addColumnSafely('exams', 'category_id', 'INT NULL');
+    await addColumnSafely('passages', 'passage_json', 'LONGTEXT NULL');
     await addColumnSafely('question_bank', 'is_global', 'BOOLEAN DEFAULT FALSE');
     await addColumnSafely('question_bank', 'tags_json', 'JSON NULL');
+    await addColumnSafely('question_bank', 'translations_json', 'LONGTEXT NULL');
+    await addColumnSafely('exam_questions', 'translations_json', 'LONGTEXT NULL');
 
     // 3. Seed Super Admin
     const superAdminEmail = 'alams1983@gmail.com';

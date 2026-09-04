@@ -48,9 +48,7 @@ export function normalizeImageUrl(url) {
 
 export function parseJSONQuestions(jsonString) {
   try {
-    console.log('[DEBUG csvJsonParser] Incoming jsonString length:', jsonString?.length);
     let data = cleanAndParseJSON(jsonString);
-    console.log('[DEBUG csvJsonParser] Parsed raw JSON data:', data);
 
     if (!Array.isArray(data) && typeof data === 'object' && data !== null) {
       if (Array.isArray(data.questions)) {
@@ -67,21 +65,6 @@ export function parseJSONQuestions(jsonString) {
     }
 
     const parsed = data.map((item, index) => {
-      const qTextEn = item.question_en || item.question_text_en || item.question || item.question_text || item.title || '';
-      const qTextHi = item.question_hi || item.question_text_hi || '';
-
-      const optsEn = item.options_en || item.options || item.choices || [];
-      const optsHi = item.options_hi || [];
-
-      const ans = item.correct_option_index !== undefined 
-        ? item.correct_option_index 
-        : (item.answer !== undefined ? item.answer : item.correct_answer);
-
-      if (!qTextEn || !optsEn || ans === undefined) {
-        console.error(`[DEBUG csvJsonParser] Item ${index + 1} missing required fields:`, { qTextEn, optsEn, ans, item });
-        throw new Error(`Item ${index + 1} is missing required fields (question_en, options_en, correct_option_index).`);
-      }
-
       const parseArrayField = (field) => {
         if (Array.isArray(field)) return field.map(x => unescapeUnicode(String(x)));
         if (typeof field === 'string') {
@@ -94,27 +77,94 @@ export function parseJSONQuestions(jsonString) {
         return [];
       };
 
+      const ans = item.correct_option_index !== undefined 
+        ? item.correct_option_index 
+        : (item.answer !== undefined ? item.answer : item.correct_answer);
+
+      let availableLangs = [];
+      let primaryLang = item.primary_language || 'en';
+      let translations = {};
+
+      if (item.translations && typeof item.translations === 'object') {
+        translations = item.translations;
+      } else if (item.translations_json) {
+        try {
+          const parsedTJ = typeof item.translations_json === 'string' ? JSON.parse(item.translations_json) : item.translations_json;
+          translations = parsedTJ.translations || {};
+          primaryLang = parsedTJ.primary_language || primaryLang;
+        } catch (e) {}
+      }
+
+      // Legacy fallback construction if no translations object present
+      if (Object.keys(translations).length === 0) {
+        const qEn = item.question_en || item.question_text_en || item.question || item.question_text || item.title || '';
+        const qHi = item.question_hi || item.question_text_hi || '';
+        const optsEn = parseArrayField(item.options_en || item.options || item.choices || []);
+        const optsHi = parseArrayField(item.options_hi || []);
+
+        if (qEn || optsEn.length > 0) {
+          translations.en = {
+            question_text: unescapeUnicode(String(qEn)),
+            options: optsEn,
+            explanation: unescapeUnicode(String(item.explanation_en || item.explanation || ''))
+          };
+        }
+
+        if (qHi || optsHi.length > 0) {
+          translations.hi = {
+            question_text: unescapeUnicode(String(qHi)),
+            options: optsHi,
+            explanation: unescapeUnicode(String(item.explanation_hi || ''))
+          };
+        }
+      }
+
+      // Auto-detect all valid language keys present in translations
+      const validLangKeys = Object.keys(translations).filter(k => {
+        const obj = translations[k];
+        return obj && (obj.question_text || (Array.isArray(obj.options) && obj.options.length > 0));
+      });
+
+      if (validLangKeys.length === 0) {
+        throw new Error(`Item ${index + 1} is missing valid question text or options in any language.`);
+      }
+
+      availableLangs = validLangKeys;
+      if (!availableLangs.includes(primaryLang)) {
+        primaryLang = availableLangs[0];
+      }
+
+      const primaryContent = translations[primaryLang] || translations[availableLangs[0]] || {};
+
       return {
         category_name: item.category_name || item.category || '',
         tag_names: item.tag_names || item.tags || [],
         passage_text_en: item.passage_text_en || item.passage_en || item.passage || '',
         passage_text_hi: item.passage_text_hi || item.passage_hi || '',
         passage_image_url: normalizeImageUrl(item.passage_image_url || item.passage_image || ''),
-        question_text_en: unescapeUnicode(String(qTextEn)),
-        question_text_hi: unescapeUnicode(String(qTextHi)),
-        options_en: parseArrayField(optsEn),
-        options_hi: parseArrayField(optsHi),
+        question_text_en: translations.en?.question_text || primaryContent.question_text || '',
+        question_text_hi: translations.hi?.question_text || '',
+        question_text: primaryContent.question_text || '',
+        options: primaryContent.options || [],
+        options_en: translations.en?.options || primaryContent.options || [],
+        options_hi: translations.hi?.options || [],
         options_images: parseArrayField(item.options_images || item.option_images || []).map(normalizeImageUrl),
         correct_option_index: parseInt(ans, 10) || 0,
-        explanation_en: unescapeUnicode(String(item.explanation_en || item.explanation || '')),
-        explanation_hi: unescapeUnicode(String(item.explanation_hi || '')),
+        explanation_en: translations.en?.explanation || primaryContent.explanation || '',
+        explanation_hi: translations.hi?.explanation || '',
         explanation_image_url: normalizeImageUrl(item.explanation_image_url || item.explanation_image || ''),
         difficulty: item.difficulty || 'medium',
-        image_url: normalizeImageUrl(item.image_url || item.image || '')
+        image_url: normalizeImageUrl(item.image_url || item.image || ''),
+        primary_language: primaryLang,
+        available_languages: availableLangs,
+        translations_json: {
+          available_languages: availableLangs,
+          primary_language: primaryLang,
+          translations
+        }
       };
     });
 
-    console.log('[DEBUG csvJsonParser] Successfully mapped questions count:', parsed.length);
     return parsed;
   } catch (e) {
     console.error('[DEBUG csvJsonParser] Error parsing JSON:', e);
@@ -130,86 +180,97 @@ export function parseCSVQuestions(csvString) {
 
   const headerCols = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"(.*)"$/, '$1'));
 
-  const isMultiLangFormat = headerCols.includes('question_en') || headerCols.includes('optiona_en') || headerCols.includes('question_text_en');
+  // Detect dynamic language suffixes present in CSV headers (e.g. _en, _bn, _hi, _gu)
+  const detectedLangs = new Set();
+  headerCols.forEach(col => {
+    const match = col.match(/(?:question|optiona|option1|explanation)_([a-z]{2})$/i);
+    if (match) detectedLangs.add(match[1].toLowerCase());
+  });
+
+  const langList = detectedLangs.size > 0 ? Array.from(detectedLangs) : ['en'];
 
   const questions = [];
 
   for (let i = 1; i < lines.length; i++) {
-    // Robust CSV split respecting quotes
     const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
     const cols = row.map(c => c.trim().replace(/^"(.*)"$/, '$1').replace(/""/g, '"'));
 
     if (cols.length < 3) continue;
 
-    if (isMultiLangFormat) {
-      const getVal = (colName) => {
-        const idx = headerCols.indexOf(colName.toLowerCase());
-        return idx !== -1 && cols[idx] !== undefined ? cols[idx] : '';
-      };
+    const getVal = (colName) => {
+      const idx = headerCols.indexOf(colName.toLowerCase());
+      return idx !== -1 && cols[idx] !== undefined ? cols[idx] : '';
+    };
 
-      const qEn = getVal('question_text_en') || getVal('question_en') || getVal('question');
-      const qHi = getVal('question_text_hi') || getVal('question_hi');
+    const translations = {};
+    const availableLangs = [];
 
-      // Support Option A-F or Option 1-6
-      const optKeysEn = ['optiona_en', 'optionb_en', 'optionc_en', 'optiond_en', 'optione_en', 'optionf_en', 'option1_en', 'option2_en', 'option3_en', 'option4_en', 'option5_en', 'option6_en'];
-      const optKeysHi = ['optiona_hi', 'optionb_hi', 'optionc_hi', 'optiond_hi', 'optione_hi', 'optionf_hi', 'option1_hi', 'option2_hi', 'option3_hi', 'option4_hi', 'option5_hi', 'option6_hi'];
-
-      const optsEn = [];
-      const optsHi = [];
-
+    langList.forEach(lang => {
+      const qVal = getVal(`question_${lang}`) || getVal(`question_text_${lang}`) || (lang === 'en' ? (getVal('question') || getVal('question_text')) : '');
+      const opts = [];
       ['a', 'b', 'c', 'd', 'e', 'f', '1', '2', '3', '4', '5', '6'].forEach(suffix => {
-        const valEn = getVal(`option${suffix}_en`) || getVal(`option_${suffix}_en`) || getVal(`option${suffix}`);
-        if (valEn) optsEn.push(valEn);
-
-        const valHi = getVal(`option${suffix}_hi`) || getVal(`option_${suffix}_hi`);
-        if (valHi) optsHi.push(valHi);
+        const optVal = getVal(`option${suffix}_${lang}`) || getVal(`option_${suffix}_${lang}`) || (lang === 'en' ? getVal(`option${suffix}`) : '');
+        if (optVal) opts.push(optVal);
       });
+      const expVal = getVal(`explanation_${lang}`) || (lang === 'en' ? getVal('explanation') : '');
 
-      const ansVal = getVal('answer') || getVal('correct_option_index') || '0';
-      const ansIdx = !isNaN(ansVal) ? parseInt(ansVal, 10) : 0;
+      if (qVal || opts.length > 0) {
+        availableLangs.push(lang);
+        translations[lang] = {
+          question_text: unescapeUnicode(qVal),
+          options: opts.map(unescapeUnicode),
+          explanation: unescapeUnicode(expVal)
+        };
+      }
+    });
 
-      const rawTags = getVal('tag_names') || getVal('tags');
-      const parsedTags = rawTags ? rawTags.split(';').join(',').split(',') : [];
-
-      questions.push({
-        category_name: getVal('category_name') || getVal('category'),
-        tag_names: parsedTags,
-        passage_text_en: getVal('passage_text_en') || getVal('passage_en') || getVal('passage'),
-        passage_text_hi: getVal('passage_text_hi') || getVal('passage_hi'),
-        passage_image_url: normalizeImageUrl(getVal('passage_image_url') || getVal('passage_image')),
-        question_text_en: qEn,
-        question_text_hi: qHi,
-        options_en: optsEn,
-        options_hi: optsHi,
-        options_images: [],
-        correct_option_index: ansIdx,
-        explanation_en: getVal('explanation_en') || getVal('explanation'),
-        explanation_hi: getVal('explanation_hi'),
-        explanation_image_url: normalizeImageUrl(getVal('explanation_image_url') || getVal('explanation_image')),
-        difficulty: getVal('difficulty') || 'medium',
-        image_url: normalizeImageUrl(getVal('image_url') || getVal('image'))
-      });
-    } else {
-      // Simple format
-      const question_text = cols[0];
-      const options = [cols[1], cols[2], cols[3], cols[4]].filter(Boolean);
-      const answer = parseInt(cols[5], 10) || 0;
-      const explanation = cols[6] || '';
-
-      questions.push({
-        category_name: '',
-        tag_names: [],
-        question_text_en: question_text,
-        question_text_hi: '',
-        options_en: options,
-        options_hi: [],
-        options_images: [],
-        correct_option_index: answer,
-        explanation_en: explanation,
-        explanation_hi: '',
-        difficulty: 'medium'
-      });
+    // Fallback single language if no language suffix found
+    if (availableLangs.length === 0) {
+      const defaultQ = cols[0];
+      const defaultOpts = [cols[1], cols[2], cols[3], cols[4]].filter(Boolean);
+      availableLangs.push('en');
+      translations.en = {
+        question_text: unescapeUnicode(defaultQ),
+        options: defaultOpts.map(unescapeUnicode),
+        explanation: unescapeUnicode(cols[6] || '')
+      };
     }
+
+    const ansVal = getVal('answer') || getVal('correct_option_index') || cols[5] || '0';
+    const ansIdx = !isNaN(ansVal) ? parseInt(ansVal, 10) : 0;
+    const rawTags = getVal('tag_names') || getVal('tags');
+    const parsedTags = rawTags ? rawTags.split(';').join(',').split(',') : [];
+
+    const primaryLang = availableLangs[0] || 'en';
+    const primaryContent = translations[primaryLang] || {};
+
+    questions.push({
+      category_name: getVal('category_name') || getVal('category') || '',
+      tag_names: parsedTags,
+      passage_text_en: getVal('passage_text_en') || getVal('passage_en') || getVal('passage') || '',
+      passage_text_hi: getVal('passage_text_hi') || getVal('passage_hi') || '',
+      passage_image_url: normalizeImageUrl(getVal('passage_image_url') || getVal('passage_image')),
+      question_text_en: translations.en?.question_text || primaryContent.question_text || '',
+      question_text_hi: translations.hi?.question_text || '',
+      question_text: primaryContent.question_text || '',
+      options: primaryContent.options || [],
+      options_en: translations.en?.options || primaryContent.options || [],
+      options_hi: translations.hi?.options || [],
+      options_images: [],
+      correct_option_index: ansIdx,
+      explanation_en: translations.en?.explanation || primaryContent.explanation || '',
+      explanation_hi: translations.hi?.explanation || '',
+      explanation_image_url: normalizeImageUrl(getVal('explanation_image_url') || getVal('explanation_image')),
+      difficulty: getVal('difficulty') || 'medium',
+      image_url: normalizeImageUrl(getVal('image_url') || getVal('image')),
+      primary_language: primaryLang,
+      available_languages: availableLangs,
+      translations_json: {
+        available_languages: availableLangs,
+        primary_language: primaryLang,
+        translations
+      }
+    });
   }
 
   return questions;

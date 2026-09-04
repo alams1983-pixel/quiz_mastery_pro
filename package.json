@@ -9,7 +9,7 @@
     "build": "VITE_RUST_NATIVE_DISABLE=1 vite build",
     "preview": "vite preview",
     "server": "node --watch server/index.js",
-    "start": "node --watch server/index.js",
+    "start": "node server/index.js",
     "db:migrate": "node server/scripts/migrate.js",
     "test": "vitest run"
   },

@@ -3,6 +3,7 @@ import { apiRequest, getUser } from '../services/api.js';
 import { ExamSessionManager, PALETTE_STATES } from '../services/examSession.js';
 import { RichText } from '../components/RichText.jsx';
 import { ReactModal } from '../components/ReactModal.jsx';
+import { LANGUAGE_NAME_MAP } from '../services/aiTranslationService.js';
 
 export function SSCExamDashboardView({ attemptId, navigate, extraParams = {} }) {
   const user = getUser() || { full_name: 'Candidate' };
@@ -162,17 +163,27 @@ export function SSCExamDashboardView({ attemptId, navigate, extraParams = {} }) 
   const currentQIndex = session.getCurrentQuestionIndex();
   const currentSecQs = session.getCurrentSectionQuestions();
 
+  let tj = currentQ?.translations_json;
+  if (typeof tj === 'string') {
+    try { tj = JSON.parse(tj); } catch (e) {}
+  }
+
+  const availableLangs = tj?.available_languages || (currentQ?.question_text_hi ? ['en', 'hi'] : ['en']);
+  const translationsMap = tj?.translations || {
+    en: { question_text: currentQ?.question_text_en || currentQ?.question_text || '', options: currentQ?.options_en || [] },
+    hi: { question_text: currentQ?.question_text_hi || '', options: currentQ?.options_hi || [] }
+  };
+
+  const activeLangKey = availableLangs.includes(currentLang) ? currentLang : (tj?.primary_language || availableLangs[0] || 'en');
+  const activeContent = translationsMap[activeLangKey] || translationsMap[availableLangs[0]] || {};
+  const isLanguageFallback = !availableLangs.includes(currentLang) && availableLangs.length > 0;
+
   const passageText = currentLang === 'hi'
     ? (currentQ?.passage_text_hi || currentQ?.passage_text_en)
     : currentQ?.passage_text_en;
 
-  const questionText = currentLang === 'hi'
-    ? (currentQ?.question_text_hi || currentQ?.question_text_en)
-    : currentQ?.question_text_en;
-
-  const optionsList = currentLang === 'hi'
-    ? (currentQ?.options_hi || currentQ?.options_en || [])
-    : (currentQ?.options_en || []);
+  const questionText = activeContent.question_text || currentQ?.question_text_en || currentQ?.question_text || '';
+  const optionsList = activeContent.options || currentQ?.options_en || [];
 
   const optLabels = ['(A)', '(B)', '(C)', '(D)', '(E)'];
   const pCounts = session.getPaletteSummaryCounts();
@@ -243,17 +254,31 @@ export function SSCExamDashboardView({ attemptId, navigate, extraParams = {} }) 
               <span className="ssc-q-marks">
                 Marks: +{parseFloat(session.exam.positive_marks).toFixed(2)} / -{parseFloat(session.exam.negative_marks).toFixed(2)}
               </span>
+              {isLanguageFallback && (
+                <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                  ℹ️ Available in {LANGUAGE_NAME_MAP[activeLangKey] || activeLangKey.toUpperCase()} only
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>View in:</label>
-              <select
-                value={currentLang}
-                onChange={(e) => setCurrentLang(e.target.value)}
-                className="ssc-lang-select"
-              >
-                <option value="en">English</option>
-                <option value="hi">Hindi (हिंदी)</option>
-              </select>
+              {availableLangs.length <= 1 ? (
+                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--primary)', background: 'var(--primary-light)', padding: '4px 10px', borderRadius: '6px' }}>
+                  {LANGUAGE_NAME_MAP[availableLangs[0]] || availableLangs[0].toUpperCase()}
+                </span>
+              ) : (
+                <select
+                  value={currentLang}
+                  onChange={(e) => setCurrentLang(e.target.value)}
+                  className="ssc-lang-select"
+                >
+                  {availableLangs.map(code => (
+                    <option key={code} value={code}>
+                      {LANGUAGE_NAME_MAP[code] || code.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../db.js';
 import { requireAuth, requireInstituteAdmin, optionalAuth } from '../middleware/auth.js';
+import { normalizeQuestionTranslations, buildSavePayload } from '../utils/multiLangHelper.js';
 
 const router = express.Router();
 
@@ -767,7 +768,8 @@ router.get('/:id/sections-questions', requireAuth, async (req, res) => {
           ...q,
           options_en: safeJSONParse(q.options_en_json),
           options_hi: safeJSONParse(q.options_hi_json),
-          options_images: safeJSONParse(q.options_images_json)
+          options_images: safeJSONParse(q.options_images_json),
+          translations_json: normalizeQuestionTranslations(q)
         }))
       });
     }
@@ -977,20 +979,22 @@ router.post('/questions', requireInstituteAdmin, async (req, res) => {
 
     const finalIsGlobal = isSuper ? (is_global ? 1 : 0) : 0;
     const normOptImgs = (Array.isArray(options_images) ? options_images : []).map(normalizeImageUrl);
+    const savePayload = buildSavePayload(req.body);
 
     const [result] = await pool.query(`
       INSERT INTO question_bank (
         institute_id, category_id, passage_id, question_text_en, question_text_hi,
         options_en_json, options_hi_json, options_images_json, correct_option_index,
-        explanation_en, explanation_hi, explanation_image_url, image_url, difficulty, is_global
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        explanation_en, explanation_hi, translations_json, explanation_image_url, image_url, difficulty, is_global
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      instId, category_id || null, passageId, question_text_en, question_text_hi || '',
-      JSON.stringify(Array.isArray(options_en) ? options_en : [options_en]),
-      JSON.stringify(Array.isArray(options_hi) ? options_hi : []),
+      instId, category_id || null, passageId,
+      savePayload.question_text_en, savePayload.question_text_hi,
+      savePayload.options_en_json, savePayload.options_hi_json,
       JSON.stringify(normOptImgs),
       parseInt(correct_option_index, 10) || 0,
-      explanation_en || '', explanation_hi || '',
+      savePayload.explanation_en, savePayload.explanation_hi,
+      savePayload.translations_json,
       normalizeImageUrl(explanation_image_url) || null,
       normalizeImageUrl(image_url) || null, difficulty || 'medium', finalIsGlobal
     ]);
@@ -1128,11 +1132,13 @@ router.get('/questions/all', requireInstituteAdmin, async (req, res) => {
 
     const questions = rows.map(q => {
       const tagsArr = safeJSONParse(q.tags_json) || (q.tag_names ? q.tag_names.split(',').map(t => t.trim()) : []);
+      const transObj = normalizeQuestionTranslations(q);
       return {
         ...q,
         options_en: safeJSONParse(q.options_en_json),
         options_hi: safeJSONParse(q.options_hi_json),
         options_images: safeJSONParse(q.options_images_json),
+        translations_json: transObj,
         tags: tagsArr
       };
     });
@@ -1195,6 +1201,8 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
       }
     }
 
+    const savePayload = buildSavePayload(req.body);
+
     await pool.query(`
       UPDATE question_bank SET
         category_id = COALESCE(?, category_id),
@@ -1206,6 +1214,7 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
         correct_option_index = ?,
         explanation_en = ?,
         explanation_hi = ?,
+        translations_json = ?,
         explanation_image_url = ?,
         image_url = ?,
         difficulty = ?,
@@ -1213,14 +1222,15 @@ router.put('/questions/:questionId', requireInstituteAdmin, async (req, res) => 
       WHERE id = ?
     `, [
       category_id || null,
-      question_text_en,
-      question_text_hi || '',
-      JSON.stringify(Array.isArray(options_en) ? options_en : [options_en]),
-      JSON.stringify(Array.isArray(options_hi) ? options_hi : []),
+      savePayload.question_text_en,
+      savePayload.question_text_hi,
+      savePayload.options_en_json,
+      savePayload.options_hi_json,
       JSON.stringify(normOptImgs),
       parseInt(correct_option_index, 10) || 0,
-      explanation_en || '',
-      explanation_hi || '',
+      savePayload.explanation_en,
+      savePayload.explanation_hi,
+      savePayload.translations_json,
       normalizeImageUrl(explanation_image_url) || null,
       normalizeImageUrl(image_url) || null,
       difficulty || 'medium',
@@ -1416,18 +1426,22 @@ router.post('/questions/bulk', requireInstituteAdmin, async (req, res) => {
       }
 
       const finalIsGlobal = isSuper ? (is_global || q.is_global ? 1 : 0) : 0;
+      const savePayload = buildSavePayload(q);
 
       const [qbRes] = await pool.query(`
         INSERT INTO question_bank (
           institute_id, category_id, passage_id, question_text_en, question_text_hi,
           options_en_json, options_hi_json, options_images_json, correct_option_index,
-          explanation_en, explanation_hi, explanation_image_url, image_url, difficulty, is_global
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          explanation_en, explanation_hi, translations_json, explanation_image_url, image_url, difficulty, is_global
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        instId, targetCatId, passageId, qEn, q.question_text_hi || '',
-        JSON.stringify(optsEn), JSON.stringify(optsHi), JSON.stringify(optsImgs),
+        instId, targetCatId, passageId,
+        savePayload.question_text_en, savePayload.question_text_hi,
+        savePayload.options_en_json, savePayload.options_hi_json,
+        JSON.stringify(optsImgs),
         parseInt(q.correct_option_index, 10) || 0,
-        q.explanation_en || q.explanation || '', q.explanation_hi || '',
+        savePayload.explanation_en, savePayload.explanation_hi,
+        savePayload.translations_json,
         normalizeImageUrl(q.explanation_image_url || q.explanation_image) || null,
         normalizeImageUrl(q.image_url || q.image) || null,
         q.difficulty || 'medium', finalIsGlobal

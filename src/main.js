@@ -305,8 +305,13 @@ async function render() {
       break;
     }
     case 'question-editor': {
-      const { renderMasterQuestionEditorView } = await import('./views/MasterQuestionEditorView.js');
-      viewElement = renderMasterQuestionEditorView(navigate, currentExtraParams);
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { MasterQuestionEditorView } = await import('./views/MasterQuestionEditorView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(MasterQuestionEditorView, { navigate, params: currentExtraParams }));
       break;
     }
     case 'exam-lobby': {

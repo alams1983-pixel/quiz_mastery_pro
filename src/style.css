@@ -343,8 +343,8 @@ body {
   border-radius: var(--radius-pill);
   font-family: var(--font-family);
   font-weight: 600;
-  font-size: 0.95rem;
-  padding: 10px 24px;
+  font-size: 0.92rem;
+  padding: 8px 20px;
   background: var(--primary);
   color: #ffffff;
   cursor: pointer;
@@ -354,12 +354,18 @@ body {
 }
 
 [data-theme="dark"] .btn {
-  color: #061117;
+  color: #ffffff;
   font-weight: 700;
+}
+
+.btn i, .btn svg {
+  color: inherit;
+  font-size: 1.1em;
 }
 
 .btn:hover {
   background: var(--primary-hover);
+  color: #ffffff;
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -389,11 +395,24 @@ body {
 
 .btn-danger {
   background: var(--danger);
-  color: #ffffff;
+  color: #ffffff !important;
+  border-color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+  color: #ffffff !important;
 }
 
 [data-theme="dark"] .btn-danger {
-  color: #ffffff;
+  background: #ef4444;
+  color: #ffffff !important;
+  border-color: #ef4444;
+}
+
+[data-theme="dark"] .btn-danger:hover {
+  background: #dc2626;
+  color: #ffffff !important;
 }
 
 .btn-sm {
@@ -401,30 +420,141 @@ body {
   font-size: 0.82rem;
 }
 
+.btn-xs {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+}
+
+.icon-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-action-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary-border);
+}
+
+.icon-action-btn.btn-danger,
+.btn-danger.btn-del-q {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+.icon-action-btn.btn-danger i,
+.btn-danger.btn-del-q i {
+  color: #ef4444 !important;
+}
+
+.icon-action-btn.btn-danger:hover,
+.btn-danger.btn-del-q:hover {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+}
+
+.icon-action-btn.btn-danger:hover i,
+.btn-danger.btn-del-q:hover i {
+  color: #ffffff !important;
+}
+
 .btn-outline {
   background: transparent;
   border: 1.5px solid var(--primary);
-  color: var(--primary);
-  box-shadow: none;
+  color: var(--primary) !important;
 }
 
-[data-theme="dark"] .btn-outline {
-  background: rgba(45, 212, 191, 0.08);
-  border-color: var(--primary);
-  color: var(--primary);
+.btn-outline i,
+.btn-outline svg {
+  color: var(--primary) !important;
 }
 
 .btn-outline:hover {
-  background: var(--primary);
-  color: #ffffff;
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
+}
+
+.btn-outline:hover i,
+.btn-outline:hover svg {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .btn-outline {
+  background: rgba(45, 212, 191, 0.1);
   border-color: var(--primary);
+  color: var(--primary) !important;
+}
+
+[data-theme="dark"] .btn-outline i,
+[data-theme="dark"] .btn-outline svg {
+  color: var(--primary) !important;
 }
 
 [data-theme="dark"] .btn-outline:hover {
-  background: var(--primary);
-  color: #061117;
-  border-color: var(--primary);
+  background: var(--primary) !important;
+  color: #0f172a !important;
+  border-color: var(--primary) !important;
 }
+
+[data-theme="dark"] .btn-outline:hover i,
+[data-theme="dark"] .btn-outline:hover svg {
+  color: #0f172a !important;
+}
+
+/* AI Prompt Special Button */
+.btn-ai-prompt {
+  background: var(--primary-light) !important;
+  border: 1.5px solid var(--primary) !important;
+  color: var(--primary) !important;
+  font-weight: 700 !important;
+}
+
+.btn-ai-prompt i {
+  color: var(--primary) !important;
+}
+
+.btn-ai-prompt:hover {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
+}
+
+.btn-ai-prompt:hover i {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .btn-ai-prompt {
+  background: rgba(45, 212, 191, 0.18) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+[data-theme="dark"] .btn-ai-prompt i {
+  color: var(--primary) !important;
+}
+
+[data-theme="dark"] .btn-ai-prompt:hover {
+  background: var(--primary) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="dark"] .btn-ai-prompt:hover i {
+  color: #0f172a !important;
+}
+
 
 .btn-text {
   background: transparent;

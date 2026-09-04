@@ -1,1 +1,0 @@
-import{j as n}from"./jsx-runtime-BjG_zV1W.js";import{R as m,r as a}from"./index-DHrWRjm8.js";import{r as i}from"./richContent-BzjwI2PX.js";const c=m.memo(function({content:r,className:e="",style:t={},tag:o="span"}){const s=a.useMemo(()=>r?i(r):"",[r]);return n.jsx(o,{className:e,style:t,dangerouslySetInnerHTML:{__html:s}})});export{c as R};

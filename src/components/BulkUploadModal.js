@@ -1,7 +1,9 @@
 import { parseCSVQuestions, parseJSONQuestions } from '../services/csvJsonParser.js';
 import { apiRequest, cache } from '../services/api.js';
+import { copyAiPromptToClipboard } from '../services/aiPromptGenerator.js';
 
 function toBase64Utf8(obj) {
+
   try {
     const jsonStr = JSON.stringify(obj);
     return btoa(unescape(encodeURIComponent(jsonStr)));
@@ -34,26 +36,32 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
   let fileError = null;
   let taxonomyError = null;
 
-  const sampleCSVTemplate = `category_name,tag_names,passage_en,passage_hi,passage_image_url,question_en,question_hi,image_url,optionA_en,optionB_en,optionC_en,optionD_en,optionA_hi,optionB_hi,optionC_hi,optionD_hi,answer,explanation_en,explanation_hi,explanation_image_url,difficulty
-"General Science","Physics,SSC CGL","Read the passage on Newton's Laws.","न्यूटन के नियमों पर गद्यांश पढ़ें।","https://example.com/passage.jpg","Identify the synonym of 'Abundant'.","'Abundant' का पर्यायवाची शब्द पहचानें।","","Scarce","Plentiful","Meager","Lacking","दुर्लभ","प्रचुर","अल्प","कमी",1,"Plentiful means existing in large quantities.","Plentiful का अर्थ है बड़ी मात्रा में मौजूद।","",medium
-"Mathematics","Algebra,Equations","","Solve $E = mc^2$ for $m$.","समीकरण $E = mc^2$ में $m$ का मान बताएं।","","m = E/c^2","m = Ec^2","m = c^2/E","m = E - c^2","","","","",0,"Dividing both sides by c^2.","दोनों पक्षों को c^2 से विभाजित करना।","",hard`;
+  const sampleCSVTemplate = `category_name,tag_names,passage_en,passage_bn,passage_image_url,question_en,question_bn,image_url,optionA_en,optionB_en,optionC_en,optionD_en,optionA_bn,optionB_bn,optionC_bn,optionD_bn,answer,explanation_en,explanation_bn,explanation_image_url,difficulty
+"General Science","Physics,SSC CGL","Read the passage on Newton's Laws.","নিউটন এর গতির সূত্র বিষয়ক বিবরণটি পড়ো।","https://example.com/passage.jpg","Identify the synonym of 'Abundant'.","'Abundant' শব্দের সমার্থক শব্দ চিহ্নিত করো।","","Scarce","Plentiful","Meager","Lacking","দুর্লভ","প্রচুর","অল্প","ঘাটতি",1,"Plentiful means existing in large quantities.","Plentiful শব্দের অর্থ বিপুল পরিমানে থাকা।","",medium
+"Mathematics","Algebra,Equations","","","","Solve $E = mc^2$ for $m$.","সমিবকরণ $E = mc^2$ এ $m$ এর মান বের করো।","","m = E/c^2","m = Ec^2","m = c^2/E","m = E - c^2","m = E/c^2","m = Ec^2","m = c^2/E","m = E - c^2",0,"Dividing both sides by c^2.","উভয় দিক c^2 দিয়ে ভাগ করে।","",hard`;
 
   const sampleJSONTemplate = JSON.stringify([
     {
+      "available_languages": ["en", "bn"],
+      "primary_language": "en",
+      "translations": {
+        "en": {
+          "question_text": "Consider the following statements regarding Rule 32:\n1. Question Hour is the first hour.\n2. Speaker can direct otherwise.",
+          "options": ["1 only", "2 only", "Both 1 and 2", "Neither 1 nor 2"],
+          "explanation": "Both statements correctly reflect Rule 32 (Question Hour)."
+        },
+        "bn": {
+          "question_text": "নিয়ম ৩২ সম্পর্কিত নিচের উক্তিগুলি বিবেচনা করুন:\n১. প্রশ্ন কাল হল প্রথম ঘণ্টা।\n২. অধ্যক্ষ অন্য নির্দেশ দিতে পারেন।",
+          "options": ["শুধুমাত্র ১", "শুধুমাত্র ২", "১ এবং ২ উভয়ই", "১ বা ২ কোনোটিই নয়"],
+          "explanation": "উভয় উক্তিতেই নিয়ম ৩২ সঠিক প্রতিফলিত হয়েছে।"
+        }
+      },
       "category_name": "General Science",
-      "tag_names": ["Physics", "SSC CGL"],
+      "tag_names": ["Physics", "Polity"],
       "passage_text_en": "Rule 32: Unless the Speaker otherwise directs, the first hour of every sitting shall be available for questions.",
-      "passage_text_hi": "नियम 32: जब तक अध्यक्ष अन्यथा निर्देश न दें, प्रत्येक बैठक का प्रथम घंटा प्रश्नों के लिए उपलब्ध होगा।",
       "passage_image_url": "https://example.com/passage_diagram.png",
-      "question_text_en": "Consider the following statements regarding Rule 32:\n1. Question Hour is the first hour.\n2. Speaker can direct otherwise.",
-      "question_text_hi": "नियम 32 के संबंध में कथनों पर विचार कीजिए:\n1. प्रश्न काल पहला घंटा है।\n2. अध्यक्ष अन्यथा निर्देश दे सकते हैं।",
       "image_url": "https://example.com/question_diagram.png",
-      "options_en": ["1 only", "2 only", "Both 1 and 2", "Neither 1 nor 2"],
-      "options_hi": ["केवल 1", "केवल 2", "1 और 2 दोनों", "न तो 1 और न ही 2"],
-      "options_images": ["", "", "", ""],
       "correct_option_index": 2,
-      "explanation_en": "Both statements correctly reflect Rule 32 (Question Hour).",
-      "explanation_hi": "दोनों कथन नियम 32 (प्रश्न काल) को सही रूप से दर्शाते हैं।",
       "explanation_image_url": "https://example.com/explanation_chart.png",
       "difficulty": "medium"
     }
@@ -111,10 +119,26 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
       </div>
 
       <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
-        <h4 style="font-weight: 700; font-size: 0.9rem; margin-bottom: 8px; color: var(--primary);">📥 Download Sample Templates:</h4>
-        <div style="display: flex; gap: 12px;">
+        <h4 style="font-weight: 700; font-size: 0.9rem; margin-bottom: 8px; color: var(--primary);">📥 Download Templates & AI Question Creation:</h4>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
           <button id="dl-csv-sample" class="btn btn-outline btn-sm"><i class="ri-file-excel-line"></i> Download CSV Template</button>
           <button id="dl-json-sample" class="btn btn-outline btn-sm"><i class="ri-code-s-slash-line"></i> Download JSON Template</button>
+          <button id="btn-copy-ai-prompt" class="btn btn-outline btn-ai-prompt btn-sm">
+            <i class="ri-sparkling-fill"></i> 📋 Copy AI Prompt for Bulk Questions
+          </button>
+        </div>
+
+        <div id="ai-prompt-instructions" style="display: none; background: var(--primary-light); border: 1px solid var(--primary-border); border-radius: 10px; padding: 14px; margin-top: 10px; font-size: 0.83rem; color: var(--text-main);">
+          <div style="display: flex; align-items: center; gap: 6px; font-weight: 800; color: var(--primary); margin-bottom: 6px; font-size: 0.9rem;">
+            <i class="ri-checkbox-circle-fill"></i> Prompt Copied to Clipboard! How to use with ChatGPT / Claude / Gemini / DeepSeek:
+          </div>
+          <ol style="margin: 0; padding-left: 18px; line-height: 1.6;">
+            <li>Open your preferred AI tool (ChatGPT, Claude, Gemini, or DeepSeek).</li>
+            <li>Paste the copied prompt into the AI chat prompt box.</li>
+            <li>Fill in the <strong>[FILL-IN-THE-BLANK]</strong> parameters with your source notes, preferred languages (e.g. <code>English and Hindi</code> or <code>Bengali</code>), total question count, category & difficulty.</li>
+            <li>Copy the AI's JSON output response and save it on your computer as a <code>.json</code> file (e.g. <code>my_questions.json</code>).</li>
+            <li>Upload the saved <code>.json</code> file right here in Step 1!</li>
+          </ol>
         </div>
       </div>
     `;
@@ -173,8 +197,9 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
             <thead>
               <tr>
                 <th>#</th>
+                <th>Languages</th>
                 <th>Category</th>
-                <th>Question (EN)</th>
+                <th>Question Statement</th>
                 <th>Options</th>
                 <th>Ans</th>
                 <th>Passage</th>
@@ -182,17 +207,30 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
               </tr>
             </thead>
             <tbody>
-              ${parsedQuestions.map((q, i) => `
-                <tr>
-                  <td style="font-weight: 700;">${i + 1}</td>
-                  <td><span class="badge-tag" style="font-size:0.75rem;">${q.category_name || 'General'}</span></td>
-                  <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${q.question_text_en}</td>
-                  <td>${(q.options_en || []).length} Choices</td>
-                  <td style="font-weight: 700; color: var(--primary);">${q.correct_option_index}</td>
-                  <td>${q.passage_text_en ? '📖 Yes' : '-'}</td>
-                  <td>${(q.image_url || q.passage_image_url || q.explanation_image_url) ? '🖼️ Yes' : '-'}</td>
-                </tr>
-              `).join('')}
+              ${parsedQuestions.map((q, i) => {
+                const langs = q.available_languages || (q.translations_json ? q.translations_json.available_languages : ['en']);
+                const prim = q.primary_language || (q.translations_json ? q.translations_json.primary_language : langs[0]);
+                const qText = q.question_text || q.question_text_en || (q.translations_json?.translations?.[prim]?.question_text) || 'Question Statement';
+                const opts = q.options || q.options_en || (q.translations_json?.translations?.[prim]?.options) || [];
+                const pText = q.passage_text_en || q.passage_text_hi || q.passage_text;
+                
+                return `
+                  <tr>
+                    <td style="font-weight: 700;">${i + 1}</td>
+                    <td>
+                      <div style="display:flex; gap:3px; flex-wrap:wrap;">
+                        ${langs.map(l => `<span class="badge-tag" style="font-size:0.7rem; font-weight:800; background:var(--primary-light); color:var(--primary);">${l.toUpperCase()}</span>`).join('')}
+                      </div>
+                    </td>
+                    <td><span class="badge-tag" style="font-size:0.75rem;">${q.category_name || 'General'}</span></td>
+                    <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${qText}">${qText}</td>
+                    <td>${opts.length} Choices (${prim})</td>
+                    <td style="font-weight: 700; color: var(--primary);">${q.correct_option_index}</td>
+                    <td>${pText ? '📖 Yes' : '-'}</td>
+                    <td>${(q.image_url || q.passage_image_url || q.explanation_image_url) ? '🖼️ Yes' : '-'}</td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -253,6 +291,29 @@ export function renderBulkUploadModal(targetId, targetType = 'exam_section', onC
 
       container.querySelector('#dl-csv-sample').addEventListener('click', () => downloadTemplate('ssc_questions_template.csv', sampleCSVTemplate));
       container.querySelector('#dl-json-sample').addEventListener('click', () => downloadTemplate('ssc_questions_template.json', sampleJSONTemplate));
+      
+      container.querySelector('#btn-copy-ai-prompt')?.addEventListener('click', async () => {
+        const btn = container.querySelector('#btn-copy-ai-prompt');
+        const instructionsBox = container.querySelector('#ai-prompt-instructions');
+        await copyAiPromptToClipboard();
+        if (btn) {
+          const originalHTML = btn.innerHTML;
+          btn.innerHTML = '<i class="ri-check-line"></i> Copied to Clipboard!';
+          btn.style.background = 'var(--success-light, #dcfce7)';
+          btn.style.color = 'var(--success, #16a34a)';
+          btn.style.borderColor = 'var(--success, #16a34a)';
+          setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.borderColor = '';
+          }, 3000);
+        }
+        if (instructionsBox) {
+          instructionsBox.style.display = 'block';
+          instructionsBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
     }
 
     if (currentStep === 2) {

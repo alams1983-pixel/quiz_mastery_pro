@@ -9,6 +9,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 
 import pool, { initDatabase } from './db.js';
+import { runMigrations } from './scripts/migrate.js';
 import logger from './logger.js';
 
 import authRoutes from './routes/auth.js';
@@ -195,9 +196,10 @@ export { app };
 if (process.env.NODE_ENV !== 'test') {
   async function startServer() {
     try {
+      await runMigrations();
       await initDatabase();
     } catch (error) {
-      logger.error('❌ Database initialization failed', error);
+      logger.error('❌ Database migration/initialization failed', error);
     }
 
     app.listen(PORT, () => {
