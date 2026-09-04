@@ -1,4 +1,4 @@
-import{r as _}from"./index-D_04MIJ9.js";import{renderMath as I}from"./katexRenderer-DzahxjNr.js";import{s as F,h as V}from"./LoadingOverlayModal-CS1Ac5fD.js";async function G(E,q,B,C){const o=document.createElement("div");o.className="modal-backdrop fade-in",o.style.cssText=`
+import{r as _}from"./index-BMyme9x2.js";import{renderMath as I}from"./katexRenderer-Dgu3c6Re.js";import{s as F,h as V}from"./LoadingOverlayModal-CS1Ac5fD.js";async function G(E,q,B,C){const o=document.createElement("div");o.className="modal-backdrop fade-in",o.style.cssText=`
     position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1100;
     display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);
   `,o.innerHTML=`

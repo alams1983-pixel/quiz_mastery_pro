@@ -197,26 +197,19 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
       const userCred = await confirmPhoneOtp(phoneConfirmationResult, otpCode);
       const idToken = userCred.idToken;
 
-      const response = await fetch('/api/auth/phone-login', {
+      const tenantSlug = currentBranding ? (currentBranding.slug || currentBranding.code) : getTenantFromURL();
+
+      const res = await apiRequest('/auth/firebase-login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firebaseIdToken: idToken, phone_number: phoneNumber })
+        body: JSON.stringify({
+          idToken,
+          phone_number: phoneNumber,
+          account_type: isStudentPortal ? 'student' : (accountType || 'teacher'),
+          institute_slug: tenantSlug
+        })
       });
 
-      const resData = await response.json();
-      if (!response.ok) {
-        throw new Error(resData.message || 'Phone authentication failed');
-      }
-
-      // Save Auth State
-      localStorage.setItem('auth_token', resData.token);
-      localStorage.setItem('user', JSON.stringify(resData.user));
-
-      if (resData.user.role === 'institute_admin' || resData.user.role === 'teacher') {
-        navigate('admin-dashboard');
-      } else {
-        navigate('dashboard');
-      }
+      await handlePostAuthSuccess(res);
     } catch (err) {
       console.error('🔴 Error verifying Phone OTP:', err);
       setAlertInfo({ show: true, type: 'danger', message: err.message || 'OTP verification failed.' });
