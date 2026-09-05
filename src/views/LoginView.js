@@ -3,6 +3,7 @@ import { getTenantFromURL, fetchTenantBranding, applyTenantTheme } from '../serv
 import { renderEnrollmentModal } from '../components/EnrollmentModal.js';
 import { createModal } from '../components/Modal.js';
 import { setupPasswordToggles } from '../services/passwordToggle.js';
+import { openCookiePreferencesModal } from '../components/CookieConsentModal.js';
 import {
   loginWithEmailPassword,
   registerWithEmailPassword,
@@ -37,8 +38,8 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
     <div class="auth-card" style="max-width: 480px; width: 100%;">
       <!-- Header / Logo -->
       <div id="authHeader" style="text-align: center; margin-bottom: 24px;">
-        <div id="authLogoWrapper" class="auth-logo-badge" style="margin: 0 auto 12px;">
-          ${isStudentPortal ? '<span style="font-size: 2rem;">🎓</span>' : '<i class="ri-building-line" style="font-size: 1.8rem; color: var(--primary);"></i>'}
+        <div id="authLogoWrapper" class="auth-logo-wrapper" style="margin: 0 auto 16px; display: flex; justify-content: center;">
+          <img src="/uploads/edutorai_logo.webp" alt="EdutorAi Logo" class="edutor-responsive-logo" />
         </div>
         <h1 id="authTitle" style="font-size: 1.65rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; margin-bottom: 6px;">
           ${isStudentPortal ? 'Student Portal' : 'Coaching Admin & Teacher Portal'}
@@ -58,68 +59,55 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
       <div id="recaptcha-container"></div>
 
       <!-- Email/Password Login Form -->
-      <form id="loginForm">
-        <div class="form-group" style="margin-bottom: 16px;">
-          <label class="form-label">Email Address</label>
-          <input type="email" id="loginEmail" class="form-control" placeholder="${isStudentPortal ? 'e.g. student@example.com' : 'e.g. teacher@academy.com'}" required />
+      <form id="loginForm" class="auth-form" style="display: block;">
+        <div class="form-group">
+          <label class="form-label" for="loginEmail">Email Address</label>
+          <input type="email" id="loginEmail" class="form-control" placeholder="name@domain.com" required autocomplete="email" />
         </div>
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label">Password</label>
-          <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required />
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" for="loginPassword" style="margin: 0;">Password</label>
+            <a href="#" id="forgotPassLink" style="font-size: 0.78rem; color: var(--primary); text-decoration: none; font-weight: 600;">Forgot?</a>
+          </div>
+          <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required autocomplete="current-password" />
         </div>
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 22px;">
-          <a href="#" id="forgotPassLink" style="font-size: 0.85rem; color: var(--primary); text-decoration: none; font-weight: 600;">
-            Forgot password?
-          </a>
-        </div>
-        <button type="submit" id="loginSubmitBtn" class="btn btn-auth-submit">
+        <button type="submit" id="btnLoginSubmit" class="btn btn-primary btn-auth-submit">
           Sign In <i class="ri-arrow-right-line"></i>
         </button>
       </form>
 
-      <!-- Registration Form (Isolated per Portal Context) -->
-      <form id="registerForm" style="display: none;">
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label">Full Name *</label>
-          <input type="text" id="regFullName" class="form-control" placeholder="${isStudentPortal ? 'e.g. Student Name' : 'e.g. Prof. Rahul Sharma'}" required />
+      <!-- Email/Password Registration Form -->
+      <form id="registerForm" class="auth-form" style="display: none;">
+        <div class="form-group">
+          <label class="form-label" for="regFullName">Full Name</label>
+          <input type="text" id="regFullName" class="form-control" placeholder="e.g. Rahul Sharma" required autocomplete="name" />
         </div>
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label">Email Address *</label>
-          <input type="email" id="regEmail" class="form-control" placeholder="${isStudentPortal ? 'e.g. student@example.com' : 'e.g. admin@coaching.com'}" required />
+        <div class="form-group">
+          <label class="form-label" for="regEmail">Email Address</label>
+          <input type="email" id="regEmail" class="form-control" placeholder="name@domain.com" required autocomplete="email" />
         </div>
-        <div class="form-group" style="margin-bottom: 14px;">
-          <label class="form-label">Password *</label>
-          <input type="password" id="regPassword" class="form-control" placeholder="••••••••" required />
+        <div class="form-group">
+          <label class="form-label" for="regPassword">Password</label>
+          <input type="password" id="regPassword" class="form-control" placeholder="Create strong password" required minlength="6" autocomplete="new-password" />
         </div>
-
         ${!isStudentPortal ? `
-          <!-- Teacher / Coaching Registration Fields -->
-          <div class="form-group" style="margin-bottom: 14px;">
-            <label class="form-label">Coaching / Institute Name *</label>
-            <input type="text" id="regCoachingName" class="form-control" placeholder="e.g. Apex IAS Academy" required />
-          </div>
-          <div class="form-group" style="margin-bottom: 20px;">
-            <label class="form-label">Contact Phone Number (Optional)</label>
-            <input type="tel" id="regPhone" class="form-control" placeholder="e.g. +91 9876543210" />
-          </div>
+        <div class="form-group">
+          <label class="form-label" for="regCoachingName">Coaching / Institute Name</label>
+          <input type="text" id="regCoachingName" class="form-control" placeholder="e.g. Apex IAS Academy" />
+        </div>
         ` : ''}
-
-        <button type="submit" id="btn-reg-submit" class="btn btn-auth-submit">
-          ${isStudentPortal ? 'Create Student Account <i class="ri-user-add-line"></i>' : 'Register Coaching Institute <i class="ri-building-line"></i>'}
+        <button type="submit" id="btnRegisterSubmit" class="btn btn-primary btn-auth-submit">
+          ${isStudentPortal ? 'Create Free Student Account' : 'Register Coaching Account'} <i class="ri-user-add-line"></i>
         </button>
       </form>
 
-      <!-- Phone OTP Form (Hidden by default) -->
-      <form id="phoneForm" style="display: none;">
-        <div style="padding: 10px 14px; background: rgba(52, 168, 83, 0.08); border-radius: 8px; margin-bottom: 16px; font-size: 0.85rem; color: #2e7d32; font-weight: 600; text-align: center; border: 1px solid rgba(52, 168, 83, 0.2);">
-          📲 Mobile OTP Sign-In (${isStudentPortal ? 'Student Portal' : 'Teacher Portal'})
-        </div>
-
+      <!-- Phone Number OTP Authentication Form -->
+      <form id="phoneForm" class="auth-form" style="display: none;">
         <div id="phoneStep1">
-          <div class="form-group" style="margin-bottom: 16px;">
-            <label class="form-label">Mobile Phone Number (with Country Code)</label>
-            <input type="tel" id="phoneInput" class="form-control" placeholder="e.g. +919876543210" required />
-            <small style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; display: block;">Include country code (e.g. +91 for India, +1 for US)</small>
+          <div class="form-group">
+            <label class="form-label">Mobile Phone Number</label>
+            <input type="tel" id="phoneInput" class="form-control" placeholder="+91 98765 43210" />
+            <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; display: block;">Include country code (e.g. +91 for India)</small>
           </div>
           <button type="button" id="btnSendOtp" class="btn btn-auth-submit" style="background: #2e7d32; border-color: #2e7d32;">
             Send Verification SMS OTP <i class="ri-send-plane-fill"></i>
@@ -152,6 +140,17 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
           <button type="button" id="btnTogglePhoneMode" class="btn-social-placeholder" style="flex: 1; cursor: pointer; justify-content: center; display: flex; align-items: center; gap: 6px; padding: 10px 14px; font-size: 0.88rem; font-weight: 600;" title="Sign in with Phone OTP">
             <i class="ri-phone-fill" style="color: #2e7d32; font-size: 1.2rem;"></i> Phone OTP
           </button>
+        </div>
+      </div>
+
+      <!-- Legal & Compliance Links Footer -->
+      <div class="auth-legal-footer" style="margin-top: 30px; text-align: center; font-size: 0.75rem; color: var(--text-muted);">
+        <div class="auth-legal-links" style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap;">
+          <a href="#/privacy-policy" id="authLinkPrivacy" title="Read our Privacy Policy">Privacy Policy</a>
+          <span style="color: var(--border-color, #cbd5e1);">•</span>
+          <a href="#/terms-of-use" id="authLinkTerms" title="Read our Terms of Use">Terms of Use</a>
+          <span style="color: var(--border-color, #cbd5e1);">•</span>
+          <a href="#/cookie-policy" id="authLinkCookies" title="Read our Cookie Policy">Cookie Policy</a>
         </div>
       </div>
     </div>
@@ -581,6 +580,28 @@ export function renderLoginView(navigate, activeTenantBranding = null) {
 
   setupPasswordToggles(container);
 
+  // Legal Links Handlers
+  container.querySelector('#authLinkPrivacy')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navigate('privacy-policy');
+  });
+
+  container.querySelector('#authLinkTerms')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navigate('terms-of-use');
+  });
+
+  container.querySelector('#authLinkCookies')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navigate('cookie-policy');
+  });
+
+  container.querySelector('#authBtnCookieSettings')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openCookiePreferencesModal();
+  });
+
   return container;
 }
+
 

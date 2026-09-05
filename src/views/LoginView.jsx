@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api, setToken, setUser, apiRequest } from '../services/api.js';
 import { getTenantFromURL } from '../services/tenant.js';
 import { ReactModal } from '../components/ReactModal.jsx';
+import { openCookiePreferencesModal } from '../components/CookieConsentModal.js';
 import {
   loginWithEmailPassword,
   registerWithEmailPassword,
@@ -16,6 +17,7 @@ import {
 export function LoginView({ navigate, activeTenantBranding = null }) {
   const urlSlug = getTenantFromURL();
   const isStudentPortal = !!(activeTenantBranding || urlSlug);
+
 
   const [authMode, setAuthMode] = useState('signin'); // 'signin' | 'register' | 'phone'
   const [submitting, setSubmitting] = useState(false);
@@ -265,12 +267,12 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
       <div className="auth-card" style={{ maxWidth: '480px', width: '100%', maxHeight: 'calc(100dvh - 40px)', overflowY: 'auto', margin: 'auto 0' }}>
         {/* Header / Logo */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div className="auth-logo-badge" style={{ margin: '0 auto 12px' }}>
-            {isStudentPortal ? (
-              <span style={{ fontSize: '2rem' }}>🎓</span>
-            ) : (
-              <i className="ri-building-line" style={{ fontSize: '1.8rem', color: 'var(--primary)' }}></i>
-            )}
+          <div className="auth-logo-wrapper" style={{ margin: '0 auto 16px', display: 'flex', justifyContent: 'center' }}>
+            <img 
+              src="/uploads/edutorai_logo.webp" 
+              alt="EdutorAi Logo" 
+              className="edutor-responsive-logo"
+            />
           </div>
           <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em', marginBottom: '6px' }}>
             {isStudentPortal ? 'Student Portal' : 'Coaching Admin & Teacher Portal'}
@@ -508,6 +510,35 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
             >
               <i className="ri-phone-fill" style={{ color: '#2e7d32', fontSize: '1.2rem' }}></i> Phone OTP
             </button>
+          </div>
+        </div>
+
+        {/* Legal & Compliance Footer Links */}
+        <div className="auth-legal-footer">
+          <div className="auth-legal-links">
+            <a 
+              href="#/privacy-policy" 
+              onClick={(e) => { e.preventDefault(); navigate('privacy-policy'); }}
+              title="Read our Privacy Policy"
+            >
+              Privacy Policy
+            </a>
+            <span style={{ color: 'var(--border-color, #cbd5e1)' }}>•</span>
+            <a 
+              href="#/terms-of-use" 
+              onClick={(e) => { e.preventDefault(); navigate('terms-of-use'); }}
+              title="Read our Terms of Use"
+            >
+              Terms of Use
+            </a>
+            <span style={{ color: 'var(--border-color, #cbd5e1)' }}>•</span>
+            <a 
+              href="#/cookie-policy" 
+              onClick={(e) => { e.preventDefault(); navigate('cookie-policy'); }}
+              title="Read our Cookie Policy"
+            >
+              Cookie Policy
+            </a>
           </div>
         </div>
       </div>

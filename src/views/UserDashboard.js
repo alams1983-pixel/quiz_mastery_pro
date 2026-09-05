@@ -8,8 +8,11 @@ export function renderUserDashboard(navigate, startQuizSession) {
     <!-- Hero Home Banner -->
     <div style="background: linear-gradient(135deg, var(--primary) 0%, #1e1b4b 100%); border-radius: var(--radius-lg); padding: 32px 36px; color: #ffffff; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; box-shadow: var(--shadow-md);">
       <div>
-        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.02em;">
-          Welcome to EdutorAi<sub class="brand-subscript">Pro</sub> Student Portal
+        <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
+          <img src="/uploads/edutorai_logo.webp" alt="EdutorAi Logo" class="dashboard-hero-logo edutor-responsive-logo" />
+        </div>
+        <h1 style="font-size: 1.85rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.02em;">
+          Welcome to EdutorAi Pro Student Portal
         </h1>
         <p style="opacity: 0.9; font-size: 1.05rem; max-width: 600px; line-height: 1.5;">
           Access your live proctored CBT exams, take self-paced practice quizzes, or build custom self-assessment tests.

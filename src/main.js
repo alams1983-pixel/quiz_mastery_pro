@@ -68,6 +68,9 @@ function navigate(view, params = {}, options = {}) {
   render();
 }
 
+// Global hook for external components and modals to trigger navigation
+window.edutorNavigate = navigate;
+
 // Handle Browser Back / Forward Navigation & Exam Exit Guard
 window.addEventListener('popstate', (e) => {
   // 1. Live CBT Exam / Active Quiz Attempt Guard
@@ -135,7 +138,7 @@ async function render() {
   app.innerHTML = '';
   const user = getUser();
 
-  // SSC Exam Candidate View runs in FULL VIEWPORT mode without standard app shell
+  // 1. SSC Exam Candidate View runs in FULL VIEWPORT mode without standard app shell
   if (currentView === 'ssc-exam') {
     const React = (await import('react')).default;
     const { createRoot } = await import('react-dom/client');
@@ -148,7 +151,36 @@ async function render() {
     return;
   }
 
-  // Unauthenticated visitors or explicit Login View: render standalone full-screen login page without sidebar shell
+  // 2. Public Legal & Compliance Views (Accessible to all users without login)
+  if (currentView === 'privacy-policy' || currentView === 'terms-of-use' || currentView === 'cookie-policy') {
+    const React = (await import('react')).default;
+    const { createRoot } = await import('react-dom/client');
+    
+    const legalWrapper = document.createElement('div');
+    legalWrapper.id = 'legalScrollContainer';
+    legalWrapper.style.height = '100vh';
+    legalWrapper.style.width = '100vw';
+    legalWrapper.style.overflowY = 'auto';
+    legalWrapper.style.overflowX = 'hidden';
+    legalWrapper.style.position = 'relative';
+    legalWrapper.style.scrollBehavior = 'smooth';
+    const root = createRoot(legalWrapper);
+
+    if (currentView === 'privacy-policy') {
+      const { PrivacyPolicyView } = await import('./views/PrivacyPolicyView.jsx');
+      root.render(React.createElement(PrivacyPolicyView, { navigate }));
+    } else if (currentView === 'terms-of-use') {
+      const { TermsOfUseView } = await import('./views/TermsOfUseView.jsx');
+      root.render(React.createElement(TermsOfUseView, { navigate }));
+    } else if (currentView === 'cookie-policy') {
+      const { CookiePolicyView } = await import('./views/CookiePolicyView.jsx');
+      root.render(React.createElement(CookiePolicyView, { navigate }));
+    }
+    app.appendChild(legalWrapper);
+    return;
+  }
+
+  // 3. Unauthenticated visitors or explicit Login View: render standalone full-screen login page without sidebar shell
   if (!user || currentView === 'login') {
     const React = (await import('react')).default;
     const { createRoot } = await import('react-dom/client');
@@ -351,5 +383,18 @@ async function render() {
   }
 }
 
-// Initial Boot: Default route is public dashboard for everyone
-navigate('dashboard');
+// Initial Boot: Route detection for deep links, hash navigation, and default dashboard
+function getInitialRoute() {
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+  const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewParam = (urlParams.get('view') || '').toLowerCase();
+
+  if (path === 'privacy-policy' || hash === 'privacy-policy' || viewParam === 'privacy-policy') return 'privacy-policy';
+  if (path === 'terms-of-use' || hash === 'terms-of-use' || viewParam === 'terms-of-use' || path === 'terms' || hash === 'terms') return 'terms-of-use';
+  if (path === 'cookie-policy' || hash === 'cookie-policy' || viewParam === 'cookie-policy' || path === 'cookies' || hash === 'cookies') return 'cookie-policy';
+  return 'dashboard';
+}
+
+navigate(getInitialRoute(), {}, { skipPush: true });
+

@@ -35,11 +35,14 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
     <!-- Persistent Left Dark Sidebar -->
     <aside class="app-sidebar" id="appSidebar">
       <!-- Sidebar Brand Header -->
-      <div class="sidebar-brand" id="brandClick">
-        <div class="brand-logo-icon">E</div>
-        <div class="brand-text">
-          <span class="brand-title">EdutorAi</span>
-          <span class="brand-sub">PRO SAAS</span>
+      <div class="sidebar-brand" id="brandClick" title="EdutorAi Home">
+        <img src="/uploads/edutorai_logo.webp" alt="EdutorAi Logo" class="sidebar-brand-logo edutor-responsive-logo" onError="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+        <div class="brand-text-fallback" style="display: none; align-items: center; gap: 10px;">
+          <div class="brand-logo-icon">E</div>
+          <div class="brand-text">
+            <span class="brand-title">EdutorAi</span>
+            <span class="brand-sub">PRO SAAS</span>
+          </div>
         </div>
       </div>
 

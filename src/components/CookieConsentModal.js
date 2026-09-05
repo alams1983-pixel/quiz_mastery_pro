@@ -31,7 +31,10 @@ export function initCookieBanner() {
         <div class="gdpr-text-box">
           <h4 class="gdpr-banner-title">Cookie & Data Privacy Notice</h4>
           <p class="gdpr-banner-desc">
-            We use cookies and local storage to keep you logged in, save your test preferences, and improve your quiz learning experience. You can choose which optional storage categories to allow under GDPR & ePrivacy regulations.
+            We use essential cookies and local storage to keep you logged in, secure CBT mock tests, and save your preferences. Read our 
+            <a href="#/cookie-policy" id="gdpr-link-cookie-policy" style="color: var(--primary, #4361ee); text-decoration: underline; font-weight: 600;">Cookie Policy</a>, 
+            <a href="#/privacy-policy" id="gdpr-link-privacy-policy" style="color: var(--primary, #4361ee); text-decoration: underline; font-weight: 600;">Privacy Policy</a>, and 
+            <a href="#/terms-of-use" id="gdpr-link-terms" style="color: var(--primary, #4361ee); text-decoration: underline; font-weight: 600;">Terms of Use</a>.
           </p>
         </div>
       </div>
@@ -51,7 +54,31 @@ export function initCookieBanner() {
 
   document.body.appendChild(bannerElement);
 
-  // Bind Events
+  // Bind Legal Links
+  const navTo = (view) => {
+    if (window.edutorNavigate) {
+      window.edutorNavigate(view);
+    } else {
+      window.location.hash = `#/${view}`;
+    }
+  };
+
+  bannerElement.querySelector('#gdpr-link-cookie-policy')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navTo('cookie-policy');
+  });
+
+  bannerElement.querySelector('#gdpr-link-privacy-policy')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navTo('privacy-policy');
+  });
+
+  bannerElement.querySelector('#gdpr-link-terms')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navTo('terms-of-use');
+  });
+
+  // Bind Action Events
   bannerElement.querySelector('#gdpr-btn-accept-all').addEventListener('click', () => {
     ConsentManager.acceptAll();
     removeBanner();
@@ -193,7 +220,10 @@ export function openCookiePreferencesModal() {
         </div>
 
         <div class="gdpr-privacy-footer-note">
-          <i class="ri-lock-line"></i> We do not sell your personal assessment data. Learn more in our Privacy Policy.
+          <i class="ri-lock-line"></i> We do not sell your personal data. Review our 
+          <a href="#/privacy-policy" id="modal-link-privacy" style="color: var(--primary, #4361ee); text-decoration: underline; margin: 0 4px;">Privacy Policy</a>, 
+          <a href="#/terms-of-use" id="modal-link-terms" style="color: var(--primary, #4361ee); text-decoration: underline; margin: 0 4px;">Terms of Use</a>, or 
+          <a href="#/cookie-policy" id="modal-link-cookies" style="color: var(--primary, #4361ee); text-decoration: underline; margin: 0 4px;">Cookie Policy</a>.
         </div>
       </div>
 
@@ -222,6 +252,30 @@ export function openCookiePreferencesModal() {
       modalElement = null;
     }
   };
+
+  const navTo = (view) => {
+    closeModal();
+    if (window.edutorNavigate) {
+      window.edutorNavigate(view);
+    } else {
+      window.location.hash = `#/${view}`;
+    }
+  };
+
+  modalElement.querySelector('#modal-link-privacy')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navTo('privacy-policy');
+  });
+
+  modalElement.querySelector('#modal-link-terms')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navTo('terms-of-use');
+  });
+
+  modalElement.querySelector('#modal-link-cookies')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navTo('cookie-policy');
+  });
 
   modalElement.querySelector('#gdpr-modal-close').addEventListener('click', closeModal);
   modalElement.addEventListener('click', (e) => {

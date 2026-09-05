@@ -63,7 +63,14 @@ export function UserDashboard({ navigate }) {
         boxShadow: 'var(--shadow-md)'
       }}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '8px', letterSpacing: '-0.02em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px' }}>
+            <img 
+              src="/uploads/edutorai_logo.webp" 
+              alt="EdutorAi Logo" 
+              className="dashboard-hero-logo edutor-responsive-logo"
+            />
+          </div>
+          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, marginBottom: '8px', letterSpacing: '-0.02em' }}>
             {isCoachingAdmin
               ? `Welcome to ${user.institute_name || 'EdutorAi Pro'} Coaching Portal 🏢`
               : `Welcome to EdutorAi Pro Student Portal`
