@@ -74,10 +74,10 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiter for Auth endpoints
+// Rate limiter for Auth endpoints (Tuned for high concurrent logins and shared campus/lab Wi-Fi networks)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per 15 mins
+  max: 3000, // Limit each IP to 3000 requests per 15 mins (allows shared institute networks)
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many authentication requests from this IP. Please try again after 15 minutes.' }

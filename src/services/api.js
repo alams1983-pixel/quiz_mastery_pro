@@ -72,7 +72,31 @@ export function logout() {
   cache.invalidate();
 }
 
+function getCacheTTL(endpoint) {
+  // Cache exam lists, details, and sections for client-side navigation
+  if (
+    endpoint === '/exams' ||
+    (endpoint.startsWith('/exams?') && !endpoint.includes('nocache')) ||
+    /^\/exams\/\d+$/.test(endpoint) ||
+    /^\/exams\/\d+\/sections-questions$/.test(endpoint) ||
+    endpoint === '/exams/batches/all'
+  ) {
+    return 150000; // 2.5 minutes TTL
+  }
+  return null;
+}
+
 export async function request(endpoint, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  const cacheTtl = getCacheTTL(endpoint);
+  const cacheKey = `req_${endpoint}`;
+
+  // Serve from client cache for repeat page navigation
+  if (method === 'GET' && cacheTtl && !options.noCache) {
+    const cached = cache.get(cacheKey);
+    if (cached !== null && cached !== undefined) return cached;
+  }
+
   const token = getToken();
   const headers = options.headers || {};
 
@@ -97,6 +121,23 @@ export async function request(endpoint, options = {}) {
   if (!res.ok) {
     const errorMsg = data.error || 'An error occurred during API request.';
     throw new Error(errorMsg);
+  }
+
+  if (method === 'GET' && cacheTtl && !options.noCache) {
+    cache.set(cacheKey, data, cacheTtl);
+  } else if (method !== 'GET') {
+    // Invalidate related cache keys on mutations
+    if (endpoint.startsWith('/exams')) {
+      cache.invalidate('exams');
+      cache.invalidate('req_/exams');
+    }
+    if (endpoint.startsWith('/quizzes')) {
+      cache.invalidate('quizzes');
+      cache.invalidate('questions');
+    }
+    if (endpoint.startsWith('/categories')) cache.invalidate('categories');
+    if (endpoint.startsWith('/tags')) cache.invalidate('tags');
+    if (endpoint.startsWith('/institutes')) cache.invalidate('institutes');
   }
 
   return data;

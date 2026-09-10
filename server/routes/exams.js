@@ -58,6 +58,51 @@ function formatMySQLDatetime(val) {
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+// ==========================================
+// IN-MEMORY EXAM ANSWER KEY CACHE
+// ==========================================
+const examAnswerKeyCache = new Map();
+const EXAM_KEY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes TTL
+
+export function invalidateExamCache(examId) {
+  if (examId) {
+    examAnswerKeyCache.delete(Number(examId));
+  } else {
+    examAnswerKeyCache.clear();
+  }
+}
+
+async function getCachedExamAnswerKeys(examId) {
+  const parsedId = Number(examId);
+  const cached = examAnswerKeyCache.get(parsedId);
+  if (cached && (Date.now() - cached.timestamp < EXAM_KEY_CACHE_TTL)) {
+    return cached.answerKeyMap;
+  }
+
+  let [questions] = await pool.query(`
+    SELECT qb.id, esq.section_id, qb.correct_option_index
+    FROM exam_section_questions esq
+    JOIN question_bank qb ON esq.question_id = qb.id
+    JOIN exam_sections es ON esq.section_id = es.id
+    WHERE es.exam_id = ?
+  `, [parsedId]);
+
+  if (questions.length === 0) {
+    [questions] = await pool.query(`
+      SELECT eq.id, eq.section_id, eq.correct_option_index
+      FROM exam_questions eq
+      JOIN exam_sections es ON eq.section_id = es.id
+      WHERE es.exam_id = ?
+    `, [parsedId]);
+  }
+
+  const answerKeyMap = new Map();
+  questions.forEach(q => answerKeyMap.set(q.id, q.correct_option_index));
+
+  examAnswerKeyCache.set(parsedId, { answerKeyMap, timestamp: Date.now() });
+  return answerKeyMap;
+}
+
 // 0. Batch / Class / Group Management Endpoints
 router.get('/batches/all', requireAuth, async (req, res) => {
   try {
@@ -598,6 +643,9 @@ router.put('/:id', requireInstituteAdmin, async (req, res) => {
       }
     }
 
+    // Invalidate memory cache for this exam
+    invalidateExamCache(examId);
+
     res.json({ message: 'Exam updated successfully.' });
   } catch (err) {
     console.error('Update Exam Error:', err);
@@ -613,6 +661,7 @@ router.delete('/:id', requireInstituteAdmin, async (req, res) => {
       return res.status(403).json({ error: 'Access denied. You do not have permission to delete this exam.' });
     }
 
+    invalidateExamCache(req.params.id);
     await pool.query('DELETE FROM exams WHERE id = ?', [req.params.id]);
     res.json({ message: 'Exam deleted successfully.' });
   } catch (err) {
@@ -1732,29 +1781,13 @@ router.post('/attempts/:attemptId/submit', requireAuth, async (req, res) => {
     let unattemptedCount = 0;
     let totalScore = 0;
 
-    // Fetch all answer keys for this exam
-    let [questions] = await pool.query(`
-      SELECT qb.id, esq.section_id, qb.correct_option_index
-      FROM exam_section_questions esq
-      JOIN question_bank qb ON esq.question_id = qb.id
-      JOIN exam_sections es ON esq.section_id = es.id
-      WHERE es.exam_id = ?
-    `, [exam.id]);
-
-    if (questions.length === 0) {
-      [questions] = await pool.query(`
-        SELECT eq.id, eq.section_id, eq.correct_option_index
-        FROM exam_questions eq
-        JOIN exam_sections es ON eq.section_id = es.id
-        WHERE es.exam_id = ?
-      `, [exam.id]);
-    }
-
-    const answerKeyMap = new Map();
-    questions.forEach(q => answerKeyMap.set(q.id, q.correct_option_index));
+    // Fetch all answer keys for this exam (using fast in-memory cache)
+    const answerKeyMap = await getCachedExamAnswerKeys(exam.id);
 
     // Clear previous item logs if re-evaluating
     await pool.query('DELETE FROM exam_item_logs WHERE attempt_id = ?', [attemptId]);
+
+    const itemLogRows = [];
 
     if (Array.isArray(responses)) {
       for (const item of responses) {
@@ -1785,22 +1818,33 @@ router.post('/attempts/:attemptId/submit', requireAuth, async (req, res) => {
           unattemptedCount++;
         }
 
-        // Safely log item attempt (resilient to missing foreign key tables)
         if (questionId && sectionId) {
-          try {
-            await pool.query(`
-              INSERT INTO exam_item_logs (
-                attempt_id, exam_question_id, section_id, palette_state,
-                selected_option, is_correct, marks_awarded, time_spent_sec, language_used
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-              attemptId, questionId, sectionId, state,
-              selected, isCorrect, marksAwarded, parseInt(item.time_spent_sec, 10) || 0, item.language || 'en'
-            ]);
-          } catch (logErr) {
-            console.warn(`[EXAM SUBMIT LOG WARNING] Skipped log for question #${questionId}:`, logErr.message);
-          }
+          itemLogRows.push([
+            attemptId,
+            questionId,
+            sectionId,
+            state,
+            selected,
+            isCorrect,
+            marksAwarded,
+            parseInt(item.time_spent_sec, 10) || 0,
+            item.language || 'en'
+          ]);
         }
+      }
+    }
+
+    // ⚡ High-Throughput: Single Multi-Row Bulk Insert (Replaces 100 sequential queries per student)
+    if (itemLogRows.length > 0) {
+      try {
+        await pool.query(`
+          INSERT INTO exam_item_logs (
+            attempt_id, exam_question_id, section_id, palette_state,
+            selected_option, is_correct, marks_awarded, time_spent_sec, language_used
+          ) VALUES ?
+        `, [itemLogRows]);
+      } catch (logErr) {
+        console.warn(`[EXAM SUBMIT BULK LOG WARNING]:`, logErr.message);
       }
     }
 

@@ -46,19 +46,42 @@ export function getTenantFromURL() {
   return null;
 }
 
+const tenantBrandingCache = new Map();
+const BRANDING_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
 /**
- * Fetches public institute branding by slug/code/id
+ * Fetches public institute branding by slug/code/id (with client-side caching)
  */
 export async function fetchTenantBranding(slugOrCode) {
   if (!slugOrCode) return null;
+  const key = String(slugOrCode).toLowerCase().trim();
+
+  // Check in-memory cache
+  const cached = tenantBrandingCache.get(key);
+  if (cached && (Date.now() - cached.timestamp < BRANDING_CACHE_TTL)) {
+    return cached.data;
+  }
+
   try {
     const response = await fetch(`/api/institutes/public-branding/${encodeURIComponent(slugOrCode)}`);
     if (!response.ok) return null;
     const data = await response.json();
-    return data.institute || null;
+    const inst = data.institute || null;
+    if (inst) {
+      tenantBrandingCache.set(key, { data: inst, timestamp: Date.now() });
+    }
+    return inst;
   } catch (err) {
     console.error('[TENANT] Failed fetching tenant branding:', err);
     return null;
+  }
+}
+
+export function invalidateTenantBrandingCache(slugOrCode) {
+  if (slugOrCode) {
+    tenantBrandingCache.delete(String(slugOrCode).toLowerCase().trim());
+  } else {
+    tenantBrandingCache.clear();
   }
 }
 

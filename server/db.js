@@ -9,8 +9,9 @@ const pool = mysql.createPool({
   password: process.env.DB_PASS || '',
   database: process.env.DB_NAME || 'edutor_quiz_db',
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 60,
+  queueLimit: 1000,
+  connectTimeout: 10000
 });
 
 export async function initDatabase() {
@@ -18,6 +19,19 @@ export async function initDatabase() {
     // 1. Verify Pool Connection
     await pool.query('SELECT 1');
     console.log('✅ Database connection verified.');
+
+    // Helper: Safely add index if it does not already exist
+    const addIndexSafely = async (table, indexName, columns) => {
+      try {
+        const [indexes] = await pool.query(`SHOW INDEX FROM \`${table}\` WHERE Key_name = ?`, [indexName]);
+        if (indexes.length === 0) {
+          await pool.query(`ALTER TABLE \`${table}\` ADD INDEX \`${indexName}\` (${columns})`);
+          console.log(`  ➕ Auto-added index ${indexName} to ${table}`);
+        }
+      } catch (err) {
+        // Table may not exist yet or minor warning
+      }
+    };
 
     // 2. Automatically ensure missing tables and columns exist on existing production databases
     const addColumnSafely = async (table, column, definition) => {
@@ -93,6 +107,13 @@ export async function initDatabase() {
     await addColumnSafely('question_bank', 'tags_json', 'JSON NULL');
     await addColumnSafely('question_bank', 'translations_json', 'LONGTEXT NULL');
     await addColumnSafely('exam_questions', 'translations_json', 'LONGTEXT NULL');
+
+    // Ensure performance-critical indices for high concurrency
+    await addIndexSafely('exam_item_logs', 'idx_item_logs_attempt', 'attempt_id');
+    await addIndexSafely('exam_item_logs', 'idx_item_logs_attempt_q', 'attempt_id, exam_question_id');
+    await addIndexSafely('exam_attempts', 'idx_attempts_exam_user', 'exam_id, user_id');
+    await addIndexSafely('exam_attempts', 'idx_attempts_user_status', 'user_id, status');
+    await addIndexSafely('exam_section_questions', 'idx_sec_questions_sec', 'section_id');
 
     // 3. Seed Super Admin
     const superAdminEmail = 'alams1983@gmail.com';

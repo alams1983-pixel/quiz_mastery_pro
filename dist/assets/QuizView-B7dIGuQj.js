@@ -1,4 +1,4 @@
-import{g as $,i as k}from"./index-D3fGMKc3.js";import{renderMath as I}from"./katexRenderer-C53ywCDs.js";import{r as R}from"./richContent-BfyZS_KE.js";import{g as lt}from"./pdfGenerator-DakZ57wp.js";function mt(q,T,Q){const t=document.createElement("div");t.className="view-container",t.innerHTML=`
+import{g as $,i as k}from"./index-Rg-hsdDB.js";import{renderMath as I}from"./katexRenderer-CjjCMCry.js";import{r as R}from"./richContent-DwLDovm7.js";import{g as lt}from"./pdfGenerator-BsQHKlL9.js";function mt(q,T,Q){const t=document.createElement("div");t.className="view-container",t.innerHTML=`
     <div class="quiz-wrapper" id="quizWrapper">
       <!-- 1. START SCREEN -->
       <div id="startScreen" style="text-align:center; padding: 20px 0;">
