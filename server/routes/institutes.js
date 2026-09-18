@@ -2,6 +2,7 @@ import express from 'express';
 import pool from '../db.js';
 import { requireAuth, requireSuperAdmin, requireInstituteAdmin } from '../middleware/auth.js';
 import { slugify, generateUniqueSlug } from '../utils/slugify.js';
+import { provisionInstituteVideoLibrary, deleteInstituteVideoLibrary } from '../utils/bunnyHelper.js';
 
 const router = express.Router();
 
@@ -238,11 +239,22 @@ router.post('/', requireSuperAdmin, async (req, res) => {
       adminId = userResult.insertId;
     }
 
+    // Auto-provision dedicated Bunny Video Library if master Bunny Account API Key is configured
+    let videoLibrary = null;
+    if (process.env.BUNNY_ACCOUNT_API_KEY) {
+      try {
+        videoLibrary = await provisionInstituteVideoLibrary({ instituteId, instituteName: name });
+      } catch (bunnyErr) {
+        console.warn(`[INSTITUTE CREATE] Auto-provisioning Bunny library failed for institute #${instituteId}:`, bunnyErr.message);
+      }
+    }
+
     res.status(201).json({
       message: 'Coaching Institute created successfully.',
       instituteId,
       code,
-      adminId
+      adminId,
+      videoLibrary
     });
   } catch (err) {
     console.error('Create Institute Error:', err);
@@ -250,6 +262,35 @@ router.post('/', requireSuperAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Institute code or Admin Email already exists.' });
     }
     res.status(500).json({ error: 'Error creating institute.' });
+  }
+});
+
+// 3b. Manually trigger / re-sync dedicated Bunny Video Library provisioning (Super Admin or Institute Admin)
+router.post('/:id/provision-video-library', requireAuth, async (req, res) => {
+  try {
+    const instId = parseInt(req.params.id, 10);
+    if (req.user.role !== 'super_admin' && (req.user.role !== 'institute_admin' || req.user.institute_id !== instId)) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
+    const [rows] = await pool.query('SELECT id, name, bunny_library_id FROM institutes WHERE id = ?', [instId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Institute not found.' });
+    }
+
+    const institute = rows[0];
+    const libConfig = await provisionInstituteVideoLibrary({
+      instituteId: institute.id,
+      instituteName: institute.name,
+    });
+
+    res.json({
+      message: 'Bunny.net Video Library provisioned successfully.',
+      library: libConfig,
+    });
+  } catch (err) {
+    console.error('Provision Video Library Error:', err);
+    res.status(500).json({ error: err.message || 'Error provisioning video library.' });
   }
 });
 
@@ -367,7 +408,13 @@ router.post('/batches/join-request', requireAuth, async (req, res) => {
 // 8. Delete Institute (Super Admin only)
 router.delete('/:id', requireSuperAdmin, async (req, res) => {
   try {
-    await pool.query('DELETE FROM institutes WHERE id = ?', [req.params.id]);
+    const instId = req.params.id;
+    const [rows] = await pool.query('SELECT bunny_library_id FROM institutes WHERE id = ?', [instId]);
+    if (rows.length > 0 && rows[0].bunny_library_id) {
+      await deleteInstituteVideoLibrary(rows[0].bunny_library_id);
+    }
+
+    await pool.query('DELETE FROM institutes WHERE id = ?', [instId]);
     res.json({ message: 'Institute deleted successfully.' });
   } catch (err) {
     res.status(500).json({ error: 'Error deleting institute.' });

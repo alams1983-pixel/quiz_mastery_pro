@@ -21,6 +21,11 @@ import quizRoutes from './routes/quizzes.js';
 import imageRoutes from './routes/images.js';
 import analyticsRoutes from './routes/analytics.js';
 import passageRoutes from './routes/passages.js';
+import studyMaterialsRoutes from './routes/studyMaterials.js';
+import videoRoutes from './routes/videos.js';
+import liveClassRoutes from './routes/liveClasses.js';
+import { initLiveSocket } from './services/liveSocket.js';
+import http from 'http';
 
 dotenv.config();
 
@@ -97,6 +102,9 @@ app.use('/api/tags', tagRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/study-materials', studyMaterialsRoutes);
+app.use('/api/videos', videoRoutes);
+app.use('/api/live-classes', liveClassRoutes);
 
 // Expose public static uploads route
 const uploadFolder = path.resolve(process.env.UPLOAD_DIR || 'uploads');
@@ -187,7 +195,11 @@ process.on('uncaughtException', (err) => {
 });
 
 // Export app for integration testing
-export { app };
+// Export app and server for integration testing
+const server = http.createServer(app);
+initLiveSocket(server, corsOptions);
+
+export { app, server };
 
 // ==========================================
 // START SERVER
@@ -202,8 +214,8 @@ if (process.env.NODE_ENV !== 'test') {
       logger.error('❌ Database migration/initialization failed', error);
     }
 
-    app.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT}`);
+    server.listen(PORT, () => {
+      logger.info(`🚀 Server running with Socket.io on port ${PORT}`);
     });
   }
 

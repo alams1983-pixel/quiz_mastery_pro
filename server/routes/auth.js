@@ -32,7 +32,8 @@ router.post('/register', async (req, res) => {
     }
 
     const password_hash = await bcrypt.hash(password, 10);
-    const isTeacher = account_type === 'teacher' || account_type === 'institute_admin';
+    const roleParam = account_type || req.body.role;
+    const isTeacher = roleParam === 'teacher' || roleParam === 'institute_admin';
 
     let userRole = 'user';
     let instituteId = null;

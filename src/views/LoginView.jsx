@@ -119,6 +119,7 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
         full_name: regFullName,
         email: regEmail,
         password: regPassword,
+        account_type: isStudentPortal ? 'student' : 'teacher',
         role: isStudentPortal ? 'user' : 'institute_admin',
         coaching_name: isStudentPortal ? undefined : regCoachingName,
         phone_number: isStudentPortal ? undefined : regPhone
@@ -150,9 +151,15 @@ export function LoginView({ navigate, activeTenantBranding = null }) {
       const userCred = await loginWithGoogle();
       const idToken = await userCred.user.getIdToken();
 
-      const res = await apiRequest('/auth/login', {
+      const tenantSlug = activeTenantBranding ? (activeTenantBranding.slug || activeTenantBranding.code) : urlSlug;
+
+      const res = await apiRequest('/auth/firebase-login', {
         method: 'POST',
-        body: JSON.stringify({ firebaseIdToken: idToken })
+        body: JSON.stringify({
+          idToken,
+          account_type: isStudentPortal ? 'student' : 'teacher',
+          institute_slug: tenantSlug
+        })
       });
 
       await handlePostAuthSuccess(res);

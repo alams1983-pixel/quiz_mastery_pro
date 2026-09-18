@@ -17,6 +17,7 @@ let currentExtraParams = {};
 
 // Apply saved theme
 const savedTheme = localStorage.getItem('theme') || 'light';
+document.documentElement.setAttribute('data-theme', savedTheme);
 document.body.setAttribute('data-theme', savedTheme);
 
 // Initialize GDPR Cookie Banner
@@ -38,7 +39,7 @@ function navigate(view, params = {}, options = {}) {
   const user = getUser();
 
   // Auth Guard
-  if (!user && (view === 'analytics' || view === 'admin' || view === 'super-admin' || view === 'user-management' || view === 'institute-admin' || view === 'institute-batches' || view === 'institute-students' || view === 'exam-questions' || view === 'question-editor' || view === 'taxonomy' || view === 'ssc-exam' || view === 'exam-analysis' || view === 'student-settings' || view === 'coaching-branding')) {
+  if (!user && (view === 'analytics' || view === 'admin' || view === 'super-admin' || view === 'user-management' || view === 'institute-admin' || view === 'institute-batches' || view === 'institute-students' || view === 'exam-questions' || view === 'question-editor' || view === 'taxonomy' || view === 'ssc-exam' || view === 'exam-analysis' || view === 'student-settings' || view === 'coaching-branding' || view === 'study-materials' || view === 'video-lectures' || view === 'live-classes')) {
     alert('Please sign in or register to access this area.');
     currentView = 'login';
   } else if ((view === 'super-admin' || view === 'user-management') && user && user.role !== 'super_admin') {
@@ -244,6 +245,36 @@ async function render() {
       viewElement = document.createElement('div');
       const root = createRoot(viewElement);
       root.render(React.createElement(StudentQuizzesView, { navigate, startQuizSession }));
+      break;
+    }
+    case 'study-materials': {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { StudyMaterialsView } = await import('./views/StudyMaterialsView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(StudyMaterialsView, { navigate }));
+      break;
+    }
+    case 'video-lectures': {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { VideoLecturesView } = await import('./views/VideoLecturesView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(VideoLecturesView, { navigate }));
+      break;
+    }
+    case 'live-classes': {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const { LiveClassesLobbyView } = await import('./views/LiveClassesLobbyView.jsx');
+      
+      viewElement = document.createElement('div');
+      const root = createRoot(viewElement);
+      root.render(React.createElement(LiveClassesLobbyView, { navigate }));
       break;
     }
     case 'student-settings': {

@@ -104,7 +104,7 @@ async function getCachedExamAnswerKeys(examId) {
 }
 
 // 0. Batch / Class / Group Management Endpoints
-router.get('/batches/all', requireAuth, async (req, res) => {
+router.get(['/batches', '/batches/all'], requireAuth, async (req, res) => {
   try {
     const instId = req.user.role === 'super_admin' ? (req.query.institute_id || req.user.institute_id) : req.user.institute_id;
     if (!instId) return res.json({ batches: [] });

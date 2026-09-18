@@ -26,6 +26,9 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
     'taxonomy': 'Master Taxonomy & Tags',
     'exam-lobby': 'SSC CBT Exam Lobby',
     'exam-analysis': 'Detailed Exam Scorecard & Analysis',
+    'live-classes': 'Interactive Live Classes',
+    'video-lectures': 'Recorded Video Lectures',
+    'study-materials': 'E-Library & Study Materials',
     'login': 'Sign In / Account Registration'
   };
 
@@ -66,6 +69,24 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
         <button class="sidebar-nav-item ${currentView === 'student-quizzes' ? 'active' : ''}" id="sideStudentQuizzes">
           <i class="ri-file-list-3-line nav-icon"></i>
           <span class="nav-label">My Quizzes</span>
+        </button>
+
+        <button class="sidebar-nav-item ${currentView === 'live-classes' ? 'active' : ''}" id="sideLiveClasses">
+          <i class="ri-broadcast-line nav-icon"></i>
+          <span class="nav-label">Live Classes</span>
+          <span class="nav-badge" style="background-color: #ef4444; color: #fff;">LIVE</span>
+        </button>
+
+        <button class="sidebar-nav-item ${currentView === 'video-lectures' ? 'active' : ''}" id="sideVideoLectures">
+          <i class="ri-video-line nav-icon"></i>
+          <span class="nav-label">Video Lectures</span>
+          <span class="nav-badge blue">VOD</span>
+        </button>
+
+        <button class="sidebar-nav-item ${currentView === 'study-materials' ? 'active' : ''}" id="sideStudyMaterials">
+          <i class="ri-book-open-line nav-icon"></i>
+          <span class="nav-label">Study Material</span>
+          <span class="nav-badge green">PDF</span>
         </button>
 
         ${user ? `
@@ -251,6 +272,15 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
   const sideStudQuizzes = shell.querySelector('#sideStudentQuizzes');
   if (sideStudQuizzes) sideStudQuizzes.addEventListener('click', () => navTo('student-quizzes'));
 
+  const sideLive = shell.querySelector('#sideLiveClasses');
+  if (sideLive) sideLive.addEventListener('click', () => navTo('live-classes'));
+
+  const sideVOD = shell.querySelector('#sideVideoLectures');
+  if (sideVOD) sideVOD.addEventListener('click', () => navTo('video-lectures'));
+
+  const sideStudy = shell.querySelector('#sideStudyMaterials');
+  if (sideStudy) sideStudy.addEventListener('click', () => navTo('study-materials'));
+
   const sideSettings = shell.querySelector('#sideSettings');
   if (sideSettings) sideSettings.addEventListener('click', () => navTo('student-settings'));
 
@@ -302,12 +332,13 @@ export function renderNavbar(currentView, navigate, extraParams = {}) {
   // Theme Handler
   const themeBtn = shell.querySelector('#themeToggleBtn');
   if (themeBtn) {
-    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    const isDark = (document.body.getAttribute('data-theme') || document.documentElement.getAttribute('data-theme')) === 'dark';
     themeBtn.innerHTML = isDark ? '<i class="ri-sun-line"></i>' : '<i class="ri-moon-line"></i>';
 
     themeBtn.addEventListener('click', () => {
-      const currentTheme = document.body.getAttribute('data-theme');
+      const currentTheme = document.body.getAttribute('data-theme') || document.documentElement.getAttribute('data-theme');
       const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
       document.body.setAttribute('data-theme', newTheme);
       localStorage.setItem('theme', newTheme);
       themeBtn.innerHTML = newTheme === 'dark' ? '<i class="ri-sun-line"></i>' : '<i class="ri-moon-line"></i>';
